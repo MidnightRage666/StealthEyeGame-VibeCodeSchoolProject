@@ -60,6 +60,12 @@ namespace StealthEyeGame
             {
                 _gameManager.UseMedkit();
             }
+
+            if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.Space &&
+                _gameManager.State == GameState.Playing)
+            {
+                _gameManager.TryDash(_mouseFieldPos);
+            }
         }
 
         private void OnMouseMove(object? sender, MouseEventArgs e)

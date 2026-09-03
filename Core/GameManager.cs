@@ -46,6 +46,14 @@ namespace StealthEyeGame.Core
         private float _transitionTimer;
         private const float TransitionDuration = 0.7f;
 
+        private float _dashCooldownTimer = 0f;
+        private float _dashTimer = 0f;
+        private Vector2 _dashDirection = Vector2.Zero;
+
+        private const float DashSpeed = 900f;
+        private const float DashDuration = 0.12f;
+        private const float DashCooldown = 1.0f;
+
         private readonly Random _rng = new Random();
 
         public GameManager()
@@ -121,6 +129,33 @@ namespace StealthEyeGame.Core
 
         /// <summary>Beendet Shop/Game-Over und beginnt einen neuen Run (Coins/Inventar bleiben erhalten).</summary>
         public void RestartAfterGameOver() => StartNewGame();
+
+        // ------------------------------------------------------------------
+        // Dash
+        // ------------------------------------------------------------------
+
+        public bool TryDash(Vector2 mouseFieldPos)
+        {
+            if (State != GameState.Playing)
+                return false;
+
+            if (IsPlacingDynamite)
+                return false;
+
+            if (_dashCooldownTimer > 0f)
+                return false;
+
+            Vector2 direction = mouseFieldPos - Player.Position;
+
+            if (direction.LengthSquared() < 0.001f)
+                return false;
+
+            _dashDirection = Vector2.Normalize(direction);
+            _dashTimer = DashDuration;
+            _dashCooldownTimer = DashCooldown;
+
+            return true;
+        }
 
         // ------------------------------------------------------------------
         // Dynamit
@@ -209,7 +244,13 @@ namespace StealthEyeGame.Core
         {
             _totalTime += dt;
 
+            if(_dashCooldownTimer > 0f)
+            {
+                _dashCooldownTimer = MathF.Max(0f, _dashCooldownTimer - dt);
+            }
+
             MovePlayerTowards(mouseFieldPos, dt);
+            UpdateDash(dt);
             UpdateDynamiteAndExplosions(dt);
 
             float bestDamage = 0f;
@@ -347,6 +388,34 @@ namespace StealthEyeGame.Core
             }
 
             Vector2 candidateY = new Vector2(Player.Position.X, Player.Position.Y + move.Y);
+            if (!CurrentLevel.CollidesWithWall(candidateY, Player.Radius))
+            {
+                Player.Position = candidateY;
+            }
+        }
+
+        private void UpdateDash(float dt)
+        {
+            if (_dashTimer <= 0f)
+                return;
+
+            _dashTimer -= dt;
+
+            Vector2 move = _dashDirection * DashSpeed * dt;
+
+            Vector2 candidateX = new Vector2(
+                Player.Position.X + move.X,
+                Player.Position.Y);
+
+            if (!CurrentLevel.CollidesWithWall(candidateX, Player.Radius))
+            {
+                Player.Position = candidateX;
+            }
+
+            Vector2 candidateY = new Vector2(
+                Player.Position.X,
+                Player.Position.Y + move.Y);
+
             if (!CurrentLevel.CollidesWithWall(candidateY, Player.Radius))
             {
                 Player.Position = candidateY;
