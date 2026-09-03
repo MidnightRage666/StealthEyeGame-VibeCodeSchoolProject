@@ -37,6 +37,15 @@ namespace StealthEyeGame.Systems
                 canPurchase: p => !p.HasStrongerDynamite,
                 apply: p => p.HasStrongerDynamite = true,
                 getOwnedLabel: p => p.HasStrongerDynamite ? "Gekauft" : ""
+            ),
+            new ShopItem(
+                itemType: ShopItemType.Medkit,
+                name: "Medkit",
+                description: "Heilt den Spieler um 25 HP.",
+                getPrice: _ => 75,
+                canPurchase: _ => true,
+                apply: p => p.MedkitsOwned += 1,
+                getOwnedLabel: p => $"Besitz: {p.MedkitsOwned}"
             )
         };
     }

@@ -54,6 +54,12 @@ namespace StealthEyeGame
             {
                 _gameManager.ToggleDynamitePlacementMode();
             }
+
+            if (e.KeyCode == Keys.R &&
+                _gameManager.State == GameState.Playing)
+            {
+                _gameManager.UseMedkit();
+            }
         }
 
         private void OnMouseMove(object? sender, MouseEventArgs e)

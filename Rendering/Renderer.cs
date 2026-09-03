@@ -306,17 +306,24 @@ namespace StealthEyeGame.Rendering
 
             float cursorX = barX + barW + 14f;
 
+            // Level
             string levelText = $"Level {gm.LevelNumber}";
             g.DrawString(levelText, font, textBrush, cursorX, barY - 1);
             cursorX += g.MeasureString(levelText, font).Width + 16f;
 
+            // Coins
             using var coinBrush = new SolidBrush(Color.FromArgb(255, 255, 210, 80));
             string coinText = $"Coins: {gm.Progress.Coins}";
             g.DrawString(coinText, font, coinBrush, cursorX, barY - 1);
             cursorX += g.MeasureString(coinText, font).Width + 16f;
 
+            // Medkit
+            string medkitText = $"Medkit x{gm.Progress.MedkitsOwned} [R]";
+            g.DrawString(medkitText, font, textBrush, cursorX, barY - 1);
+            cursorX += g.MeasureString(medkitText, font).Width + 16f;
+
             // Dynamit-Button (Klickfläche für Platzier-Modus)
-            string dynText = $"Dynamit x{gm.Progress.DynamiteOwned}";
+            string dynText = $"Dynamit x{gm.Progress.DynamiteOwned} [E]";
             var dynSize = g.MeasureString(dynText, font);
             var dynRect = new Rectangle((int)cursorX, (int)(barY - 4), (int)dynSize.Width + 16, (int)barH + 8);
             DynamiteButtonRect = dynRect;

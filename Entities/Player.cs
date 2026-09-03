@@ -46,6 +46,11 @@ namespace StealthEyeGame.Entities
             HP = MathF.Max(0f, HP - damagePerSecond * dt);
         }
 
+        public void Heal(float amount)
+        {
+            HP = MathF.Min(MaxHP, HP + amount);
+        }
+
         public void ResetForNewRun(Vector2 startPosition)
         {
             Position = startPosition;

@@ -97,6 +97,28 @@ namespace StealthEyeGame.Core
             }
         }
 
+        public bool UseMedkit()
+        {
+            if (State != GameState.Playing)
+                return false;
+
+            if (!Player.IsAlive)
+                return false;
+
+            if (Progress.MedkitsOwned <= 0)
+                return false;
+
+            if (Player.HP >= Player.MaxHP)
+                return false;
+
+            const float healAmount = 25f;
+
+            Player.Heal(healAmount);
+            Progress.MedkitsOwned--;
+
+            return true;
+        }
+
         /// <summary>Beendet Shop/Game-Over und beginnt einen neuen Run (Coins/Inventar bleiben erhalten).</summary>
         public void RestartAfterGameOver() => StartNewGame();
 

@@ -13,6 +13,8 @@ namespace StealthEyeGame.Systems
 
         public int DynamiteOwned { get; set; }
 
+        public int MedkitsOwned { get; set; }
+
         /// <summary>Dauerhafter HP-Bonus on top von GameConstants.PlayerBaseMaxHP.</summary>
         public float BonusMaxHP { get; set; }
 
