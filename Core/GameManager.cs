@@ -42,6 +42,8 @@ namespace StealthEyeGame.Core
 
         public bool PlayerIsSpotted { get; private set; }
 
+        public bool IsMovementPaused { get; private set; }
+
         private float _totalTime;
         private float _transitionTimer;
         private const float TransitionDuration = 0.7f;
@@ -50,9 +52,15 @@ namespace StealthEyeGame.Core
         private float _dashTimer = 0f;
         private Vector2 _dashDirection = Vector2.Zero;
 
+        private float _spawnProtectionTimer = 0f;
+
+        private const float SpawnProtectionDuration = 1.0f;
+
         private const float DashSpeed = 900f;
         private const float DashDuration = 0.12f;
         private const float DashCooldown = 1.0f;
+
+        private const float DynamitePlacementRadius = 200f;
 
         private readonly Random _rng = new Random();
 
@@ -75,6 +83,8 @@ namespace StealthEyeGame.Core
             CurrentLevel = LevelGenerator.Generate(LevelNumber, _rng);
             float maxHp = GameConstants.PlayerBaseMaxHP + Progress.BonusMaxHP;
             Player = new Player(CurrentLevel.PlayerStart, maxHp);
+            IsMovementPaused = false;
+            _spawnProtectionTimer = SpawnProtectionDuration;
         }
 
         private void LoadLevel(int number)
@@ -82,6 +92,8 @@ namespace StealthEyeGame.Core
             LevelNumber = number;
             CurrentLevel = LevelGenerator.Generate(LevelNumber, _rng);
             Player.MoveToNewLevel(CurrentLevel.PlayerStart);
+
+            _spawnProtectionTimer = SpawnProtectionDuration;
         }
 
         // ------------------------------------------------------------------
@@ -130,6 +142,18 @@ namespace StealthEyeGame.Core
         /// <summary>Beendet Shop/Game-Over und beginnt einen neuen Run (Coins/Inventar bleiben erhalten).</summary>
         public void RestartAfterGameOver() => StartNewGame();
 
+
+        public void ToggleMovementPause()
+        {
+            if (State != GameState.Playing)
+                return;
+
+            if (IsPlacingDynamite)
+                return;
+
+            IsMovementPaused = !IsMovementPaused;
+        }
+
         // ------------------------------------------------------------------
         // Dash
         // ------------------------------------------------------------------
@@ -175,6 +199,11 @@ namespace StealthEyeGame.Core
             if (Progress.DynamiteOwned <= 0) { IsPlacingDynamite = false; return false; }
             if (fieldPosition.X < 0 || fieldPosition.Y < 0 ||
                 fieldPosition.X > GameConstants.CanvasWidth || fieldPosition.Y > GameConstants.CanvasHeight)
+                return false;
+
+            float distance = Vector2.Distance(Player.Position, fieldPosition);
+
+            if (distance > DynamitePlacementRadius)
                 return false;
 
             Progress.DynamiteOwned -= 1;
@@ -244,13 +273,23 @@ namespace StealthEyeGame.Core
         {
             _totalTime += dt;
 
-            if(_dashCooldownTimer > 0f)
+            if (_spawnProtectionTimer > 0f)
+            {
+                _spawnProtectionTimer =
+                    MathF.Max(0f, _spawnProtectionTimer - dt);
+            }
+
+            if (_dashCooldownTimer > 0f)
             {
                 _dashCooldownTimer = MathF.Max(0f, _dashCooldownTimer - dt);
             }
 
-            MovePlayerTowards(mouseFieldPos, dt);
-            UpdateDash(dt);
+            if (!IsPlacingDynamite && !IsMovementPaused)
+            {
+                MovePlayerTowards(mouseFieldPos, dt);
+                UpdateDash(dt);
+            }
+
             UpdateDynamiteAndExplosions(dt);
 
             float bestDamage = 0f;
@@ -276,7 +315,7 @@ namespace StealthEyeGame.Core
             Player.IsSpottedThisFrame = spotted;
             Player.SlowMultiplier = spotted ? bestSlow : 1f;
 
-            if (spotted)
+            if (spotted && _spawnProtectionTimer <= 0f)
             {
                 Player.TakeDamage(bestDamage, dt);
             }

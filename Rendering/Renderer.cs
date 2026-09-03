@@ -63,7 +63,7 @@ namespace StealthEyeGame.Rendering
 
             if (gm.IsPlacingDynamite)
             {
-                DrawPlacementPreview(g, mouseFieldPos);
+                DrawPlacementPreview(g, gm, mouseFieldPos);
             }
 
             g.Restore(state);
@@ -182,13 +182,41 @@ namespace StealthEyeGame.Rendering
             }
         }
 
-        private void DrawPlacementPreview(Graphics g, PointF mouseFieldPos)
-        {
-            using var pen = new Pen(Color.FromArgb(200, DynamiteColor), 1.5f) { DashStyle = DashStyle.Dash };
-            float radius = GameConstants.ExplosionBaseRadius;
-            g.DrawEllipse(pen, mouseFieldPos.X - radius, mouseFieldPos.Y - radius, radius * 2, radius * 2);
-            using var dotBrush = new SolidBrush(DynamiteColor);
-            g.FillEllipse(dotBrush, mouseFieldPos.X - 6, mouseFieldPos.Y - 6, 12, 12);
+        private void DrawPlacementPreview(Graphics g, GameManager gm, PointF mouseFieldPos)
+        { 
+            const float placementRadius = 200f;
+
+            using var radiusPen = new Pen(
+                Color.FromArgb(100, 200, 60, 40),
+                2f)
+            {
+                DashStyle = DashStyle.Dash
+            };
+
+            g.DrawEllipse(
+                radiusPen,
+                gm.Player.Position.X - placementRadius,
+                gm.Player.Position.Y - placementRadius,
+                placementRadius * 2,
+                placementRadius * 2);
+
+            float distance = Vector2.Distance(
+                gm.Player.Position,
+                new Vector2(mouseFieldPos.X, mouseFieldPos.Y));
+
+            bool valid = distance <= placementRadius;
+
+            using var dotBrush = new SolidBrush(
+                valid
+                    ? DynamiteColor
+                    : Color.Gray);
+
+            g.FillEllipse(
+                dotBrush,
+                mouseFieldPos.X - 6,
+                mouseFieldPos.Y - 6,
+                12,
+                12);
         }
 
         // ------------------------------------------------------------------

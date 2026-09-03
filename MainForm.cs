@@ -61,10 +61,16 @@ namespace StealthEyeGame
                 _gameManager.UseMedkit();
             }
 
-            if (e.KeyCode == Keys.ShiftKey || e.KeyCode == Keys.Space &&
+            if (e.KeyCode == Keys.ShiftKey &&
                 _gameManager.State == GameState.Playing)
             {
                 _gameManager.TryDash(_mouseFieldPos);
+            }
+
+            if (e.KeyCode == Keys.Space &&
+                _gameManager.State == GameState.Playing)
+            {
+                _gameManager.ToggleMovementPause();
             }
         }
 

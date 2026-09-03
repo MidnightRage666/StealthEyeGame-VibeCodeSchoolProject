@@ -4,28 +4,6 @@ using StealthEyeGame.Core;
 
 namespace StealthEyeGame.Entities
 {
-    /// <summary>
-    /// Augen-Gegner mit vollständigem Zustandsautomat.
-    ///
-    /// Zustandsübergänge (siehe <see cref="EyeState"/>):
-    ///
-    ///   Idle --(Spieler gesehen)--> Alert
-    ///   Idle --(Geräusch gehört)--> Investigation
-    ///   Investigation --(Ziel erreicht)--> Searching
-    ///   Investigation --(Spieler gesehen)--> Alert
-    ///   Alert --(Spieler sichtbar)--> bleibt stehen, verfolgt mit der Pupille
-    ///   Alert --(Sicht verloren)--> läuft zur letzten bekannten Position
-    ///   Alert --(Position erreicht, kein Spieler)--> Searching
-    ///   Searching --(Spieler gesehen)--> Alert
-    ///   Searching --(Zeit abgelaufen)--> Returning
-    ///   Returning --(Heimatposition erreicht)--> Idle
-    ///   Returning --(Spieler gesehen)--> Alert
-    ///
-    /// Wichtig für Fairness: Das Auge kennt die Spielerposition NIEMALS direkt.
-    /// Es kennt ausschließlich <see cref="LastKnownPlayerPos"/> - und die wird
-    /// nur genau dann aktualisiert, wenn eine echte Sichtprüfung (Distanz +
-    /// Winkel + freie Sichtlinie) in diesem Frame erfolgreich war.
-    /// </summary>
     public class Eye
     {
         public Vector2 HomePosition { get; }
@@ -42,61 +20,100 @@ namespace StealthEyeGame.Entities
         public EyeState State { get; private set; } = EyeState.Idle;
         public bool DetectedThisFrame { get; private set; }
 
-        /// <summary>Die letzte tatsächlich gesehene Spielerposition, oder null, falls noch nie gesehen.</summary>
         public Vector2? LastKnownPlayerPos { get; private set; }
 
         public float HP { get; private set; } = GameConstants.EyeMaxHP;
         public bool IsDestroyed => HP <= 0f;
 
-        // --- Ruhe-Blickverhalten ---
-        private readonly float _sweepAmplitude;
-        private float _idleHoldTimer;
-        private float _idleTargetOffset;
+        // ------------------------------------------------------------
+        // Normale Bewegung
+        // ------------------------------------------------------------
 
-        // --- Bewegungsziel für Investigation ---
+        private Vector2 _movementTarget;
+        private bool _hasMovementTarget;
+        private bool _isPreparingMovement;
+
+        private float _movementWaitTimer;
+
+        // Blickverhalten während des Laufens
+        private float _walkLookTimer;
+        private float _walkLookOffset;
+
+        private readonly Random _rng;
+
+        private const float WalkGazeTurnRate = 4.0f;
+        private const float AlertTurnRate = 6.5f;
+        private const float ReturnGazeTurnRate = 3.0f;
+        private const float SearchTurnRate = 3.5f;
+
+        // Wie weit das Auge beim normalen Herumlaufen schauen darf
+        private const float RandomLookAngle = 0.65f;
+
+        // ------------------------------------------------------------
+        // Investigation
+        // ------------------------------------------------------------
+
         private Vector2 _investigationTarget;
 
-        // --- Suchverhalten ---
-        private static readonly float[] SearchOffsets = { -1.05f, 0f, 1.05f, 0f, -2.0f, 0f, 2.0f };
+        // ------------------------------------------------------------
+        // Searching
+        // ------------------------------------------------------------
+
+        private static readonly float[] SearchOffsets =
+        {
+            -1.05f,
+            0f,
+            1.05f,
+            0f,
+            -2.0f,
+            0f,
+            2.0f
+        };
+
         private float _searchBaseAngle;
         private int _searchSegmentIndex;
         private float _searchSegmentTimer;
         private float _searchStateTimer;
         private float _searchDuration;
 
-        private readonly Random _rng;
-
-        private const float IdleTurnRate = 0.9f;
-        private const float AlertTurnRate = 6.5f;
-        private const float WalkGazeTurnRate = 3.0f;
-        private const float ReturnGazeTurnRate = 2.0f;
-        private const float SearchTurnRate = 3.5f;
-
-        public Eye(Vector2 position, float facingAngle, float visionRange, float visionHalfAngle,
-                   float damagePerSecond, float slowMultiplierOnPlayer,
-                   float sweepAmplitude, int seed)
+        public Eye(
+            Vector2 position,
+            float facingAngle,
+            float visionRange,
+            float visionHalfAngle,
+            float damagePerSecond,
+            float slowMultiplierOnPlayer,
+            float sweepAmplitude,
+            int seed)
         {
             HomePosition = position;
             CurrentPosition = position;
+
             FacingAngle = facingAngle;
             GazeAngle = facingAngle;
+
             VisionRange = visionRange;
             VisionHalfAngle = visionHalfAngle;
+
             DamagePerSecond = damagePerSecond;
             SlowMultiplierOnPlayer = slowMultiplierOnPlayer;
-            _sweepAmplitude = sweepAmplitude;
+
             _rng = new Random(seed);
+
+            // Beim Start erstmal kurze Pause,
+            // danach sucht sich das Auge sein erstes Ziel.
+            _movementWaitTimer = RandomWaitTime();
+            _walkLookTimer = RandomLookTime();
         }
 
-        /// <summary>Wird von einer Geräuschquelle (z. B. Explosion) aufgerufen.</summary>
         public void NotifyNoise(Vector2 sourcePosition)
         {
-            // Ein Auge, das den Spieler gerade aktiv verfolgt, lässt sich von einem
-            // bloßen Geräusch nicht ablenken - der echte Fund hat Priorität.
-            if (State == EyeState.Alert) return;
+            if (State == EyeState.Alert)
+                return;
 
             State = EyeState.Investigation;
             _investigationTarget = sourcePosition;
+            _hasMovementTarget = false;
         }
 
         public void TakeExplosionDamage(float damage)
@@ -104,22 +121,21 @@ namespace StealthEyeGame.Entities
             HP = MathF.Max(0f, HP - damage);
         }
 
-        /// <summary>
-        /// Aktualisiert Zustand, Bewegung, Blickrichtung und Spielererkennung für einen Frame.
-        /// collidesWithWall(pos, radius) prüft Kollision für die Eigenbewegung des Auges.
-        /// hasWallBetween(a, b) prüft, ob zwischen zwei Weltpunkten eine Wand die Sichtlinie blockiert.
-        /// </summary>
-        public void Update(float dt, Vector2 playerPos, Func<Vector2, float, bool> collidesWithWall,
-                            Func<Vector2, Vector2, bool> hasWallBetween)
+        public void Update(
+            float dt,
+            Vector2 playerPos,
+            Func<Vector2, float, bool> collidesWithWall,
+            Func<Vector2, Vector2, bool> hasWallBetween)
         {
-            if (IsDestroyed) return;
+            if (IsDestroyed)
+                return;
 
             bool wasDetectedLastFrame = DetectedThisFrame;
 
             switch (State)
             {
                 case EyeState.Idle:
-                    UpdateIdleLook(dt);
+                    UpdateIdle(dt, collidesWithWall);
                     break;
 
                 case EyeState.Investigation:
@@ -127,7 +143,11 @@ namespace StealthEyeGame.Entities
                     break;
 
                 case EyeState.Alert:
-                    UpdateAlert(dt, playerPos, wasDetectedLastFrame, collidesWithWall);
+                    UpdateAlert(
+                        dt,
+                        playerPos,
+                        wasDetectedLastFrame,
+                        collidesWithWall);
                     break;
 
                 case EyeState.Searching:
@@ -139,14 +159,33 @@ namespace StealthEyeGame.Entities
                     break;
             }
 
-            // Echte Sichtprüfung - läuft in JEDEM Zustand, damit die KI niemals schummelt.
+            // --------------------------------------------------------
+            // Echte Sichtprüfung
+            // --------------------------------------------------------
+
             Vector2 toPlayer = playerPos - CurrentPosition;
             float distance = toPlayer.Length();
-            float angleToPlayer = MathF.Atan2(toPlayer.Y, toPlayer.X);
 
             bool inRange = distance <= VisionRange;
-            bool inAngle = inRange && MathF.Abs(MathUtil.AngleDifference(GazeAngle, angleToPlayer)) <= VisionHalfAngle;
-            bool clearLine = inAngle && !hasWallBetween(CurrentPosition, playerPos);
+
+            bool inAngle = false;
+
+            if (inRange && distance > 0.001f)
+            {
+                float angleToPlayer =
+                    MathF.Atan2(toPlayer.Y, toPlayer.X);
+
+                inAngle =
+                    MathF.Abs(
+                        MathUtil.AngleDifference(
+                            GazeAngle,
+                            angleToPlayer))
+                    <= VisionHalfAngle;
+            }
+
+            bool clearLine =
+                inAngle &&
+                !hasWallBetween(CurrentPosition, playerPos);
 
             DetectedThisFrame = clearLine;
 
@@ -157,118 +196,575 @@ namespace StealthEyeGame.Entities
             }
         }
 
-        private void UpdateIdleLook(float dt)
-        {
-            _idleHoldTimer -= dt;
-            if (_idleHoldTimer <= 0f)
-            {
-                _idleTargetOffset = _rng.NextDouble() < 0.35
-                    ? 0f
-                    : (float)(_rng.NextDouble() * 2.0 - 1.0) * _sweepAmplitude;
-                _idleHoldTimer = Lerp(GameConstants.IdleLookMinDuration, GameConstants.IdleLookMaxDuration, (float)_rng.NextDouble());
-            }
-            GazeAngle = MathUtil.RotateTowards(GazeAngle, FacingAngle + _idleTargetOffset, IdleTurnRate * dt);
-        }
+        // ============================================================
+        // IDLE / NORMALES HERUMLAUFEN
+        // ============================================================
 
-        private void UpdateInvestigation(float dt, Func<Vector2, float, bool> collidesWithWall)
+        private void UpdateIdle(
+            float dt,
+            Func<Vector2, float, bool> collidesWithWall)
         {
-            MoveToward(_investigationTarget, dt, collidesWithWall);
-            AimGazeTowardsMovement(_investigationTarget, WalkGazeTurnRate, dt);
-
-            if (Vector2.Distance(CurrentPosition, _investigationTarget) <= GameConstants.EyeArriveThreshold)
+            // Noch kein Ziel?
+            if (!_hasMovementTarget)
             {
-                EnterSearching();
-            }
-        }
+                _movementWaitTimer -= dt;
 
-        private void UpdateAlert(float dt, Vector2 playerPos, bool wasDetectedLastFrame, Func<Vector2, float, bool> collidesWithWall)
-        {
-            if (wasDetectedLastFrame)
-            {
-                // Spieler war letzten Frame sichtbar - Auge bleibt stehen und verfolgt live mit der Pupille.
-                Vector2 toPlayer = playerPos - CurrentPosition;
-                float liveAngle = MathF.Atan2(toPlayer.Y, toPlayer.X);
-                GazeAngle = MathUtil.RotateTowards(GazeAngle, liveAngle, AlertTurnRate * dt);
+                UpdateIdleLooking(dt);
+
+                if (_movementWaitTimer <= 0f)
+                {
+                    FindNewMovementTarget(collidesWithWall);
+                }
+
                 return;
             }
 
-            // Sicht verloren - zur letzten bekannten Position laufen (nicht zur echten Spielerposition!).
-            Vector2 target = LastKnownPlayerPos ?? CurrentPosition;
-            MoveToward(target, dt, collidesWithWall);
-            AimGazeTowardsMovement(target, AlertTurnRate * 0.6f, dt);
+            // ------------------------------------------------------------
+            // Erst in Richtung des neuen Ziels drehen
+            // ------------------------------------------------------------
 
-            if (Vector2.Distance(CurrentPosition, target) <= GameConstants.EyeArriveThreshold)
+            if (_isPreparingMovement)
+            {
+                Vector2 direction =
+                    _movementTarget - CurrentPosition;
+
+                if (direction.LengthSquared() > 0.01f)
+                {
+                    float targetAngle =
+                        MathF.Atan2(
+                            direction.Y,
+                            direction.X);
+
+                    GazeAngle =
+                        MathUtil.RotateTowards(
+                            GazeAngle,
+                            targetAngle,
+                            WalkGazeTurnRate * dt);
+
+                    float angleDifference =
+                        MathF.Abs(
+                            MathUtil.AngleDifference(
+                                GazeAngle,
+                                targetAngle));
+
+                    // Erst loslaufen, wenn das Auge
+                    // fast vollständig in die Richtung schaut.
+                    if (angleDifference < 0.12f)
+                    {
+                        _isPreparingMovement = false;
+                    }
+                }
+
+                return;
+            }
+
+            // ------------------------------------------------------------
+            // Jetzt tatsächlich laufen
+            // ------------------------------------------------------------
+
+            MoveToward(
+                _movementTarget,
+                dt,
+                collidesWithWall);
+
+            UpdateWalkingLook(
+                dt,
+                _movementTarget);
+
+            if (Vector2.Distance(
+                    CurrentPosition,
+                    _movementTarget)
+                <= GameConstants.EyeArriveThreshold)
+            {
+                CurrentPosition = _movementTarget;
+
+                _hasMovementTarget = false;
+                _isPreparingMovement = false;
+
+                _movementWaitTimer = RandomWaitTime();
+                _walkLookTimer = 0f;
+            }
+        }
+
+        private void FindNewMovementTarget(
+            Func<Vector2, float, bool> collidesWithWall)
+        {
+            for (int i = 0; i < 40; i++)
+            {
+                float angle =
+                    (float)(_rng.NextDouble() * MathF.Tau);
+
+                float distance =
+                    100f +
+                    (float)_rng.NextDouble() * 180f;
+
+                Vector2 target =
+                    CurrentPosition +
+                    new Vector2(
+                        MathF.Cos(angle),
+                        MathF.Sin(angle)) * distance;
+
+                // Ziel muss frei sein
+                if (collidesWithWall(
+                        target,
+                        GameConstants.EyeRadius))
+                {
+                    continue;
+                }
+
+                // Den kompletten Weg zum Ziel prüfen,
+                // damit das Auge nicht durch eine Wand laufen will.
+                bool pathBlocked = false;
+
+                const int pathChecks = 8;
+
+                for (int step = 1; step <= pathChecks; step++)
+                {
+                    float t = step / (float)pathChecks;
+
+                    Vector2 checkPosition =
+                        Vector2.Lerp(
+                            CurrentPosition,
+                            target,
+                            t);
+
+                    if (collidesWithWall(
+                            checkPosition,
+                            GameConstants.EyeRadius))
+                    {
+                        pathBlocked = true;
+                        break;
+                    }
+                }
+
+                if (pathBlocked)
+                    continue;
+
+                // Gültiges Bewegungsziel gefunden
+                _movementTarget = target;
+                _hasMovementTarget = true;
+
+                // WICHTIG:
+                // Noch NICHT sofort drehen.
+                // Erst wird der Sichtkegel langsam zum Ziel geschwenkt.
+                _isPreparingMovement = true;
+
+                _walkLookTimer = RandomLookTime();
+
+                return;
+            }
+
+            // Kein vernünftiges Ziel gefunden.
+            // Lieber kurz stehen bleiben als herumzuzappeln.
+            _hasMovementTarget = false;
+            _isPreparingMovement = false;
+            _movementWaitTimer = 0.5f;
+        }
+
+        // ============================================================
+        // BLICKVERHALTEN
+        // ============================================================
+
+        private void UpdateWalkingLook(
+            float dt,
+            Vector2 movementTarget)
+        {
+            Vector2 movement =
+                movementTarget - CurrentPosition;
+
+            if (movement.LengthSquared() < 0.01f)
+                return;
+
+            float movementAngle =
+                MathF.Atan2(
+                    movement.Y,
+                    movement.X);
+
+            _walkLookTimer -= dt;
+
+            if (_walkLookTimer <= 0f)
+            {
+                // Meistens nach vorne schauen.
+                // Manchmal leicht links/rechts.
+                float random =
+                    (float)_rng.NextDouble();
+
+                if (random < 0.55f)
+                {
+                    _walkLookOffset = 0f;
+                }
+                else
+                {
+                    _walkLookOffset =
+                        (float)(
+                            (_rng.NextDouble() * 2.0 - 1.0)
+                            * RandomLookAngle);
+                }
+
+                _walkLookTimer = RandomLookTime();
+            }
+
+            float targetAngle =
+                movementAngle + _walkLookOffset;
+
+            GazeAngle =
+                MathUtil.RotateTowards(
+                    GazeAngle,
+                    targetAngle,
+                    WalkGazeTurnRate * dt);
+        }
+
+        private void UpdateIdleLooking(float dt)
+        {
+            _walkLookTimer -= dt;
+
+            if (_walkLookTimer <= 0f)
+            {
+                float random =
+                    (float)_rng.NextDouble();
+
+                if (random < 0.35f)
+                {
+                    _walkLookOffset = 0f;
+                }
+                else
+                {
+                    _walkLookOffset =
+                        (float)(
+                            (_rng.NextDouble() * 2.0 - 1.0)
+                            * 1.3f);
+                }
+
+                _walkLookTimer = RandomLookTime();
+            }
+
+            float targetAngle =
+                FacingAngle + _walkLookOffset;
+
+            GazeAngle =
+                MathUtil.RotateTowards(
+                    GazeAngle,
+                    targetAngle,
+                    WalkGazeTurnRate * dt);
+        }
+
+        // ============================================================
+        // INVESTIGATION
+        // ============================================================
+
+        private void UpdateInvestigation(
+            float dt,
+            Func<Vector2, float, bool> collidesWithWall)
+        {
+            MoveToward(
+                _investigationTarget,
+                dt,
+                collidesWithWall);
+
+            AimGazeTowardsMovement(
+                _investigationTarget,
+                WalkGazeTurnRate,
+                dt);
+
+            if (Vector2.Distance(
+                    CurrentPosition,
+                    _investigationTarget)
+                <= GameConstants.EyeArriveThreshold)
             {
                 EnterSearching();
             }
         }
+
+        // ============================================================
+        // ALERT
+        // ============================================================
+
+        private void UpdateAlert(
+            float dt,
+            Vector2 playerPos,
+            bool wasDetectedLastFrame,
+            Func<Vector2, float, bool> collidesWithWall)
+        {
+            if (wasDetectedLastFrame)
+            {
+                Vector2 toPlayer =
+                    playerPos - CurrentPosition;
+
+                float distance = toPlayer.Length();
+
+                if (distance > 0.01f)
+                {
+                    Vector2 direction =
+                        toPlayer / distance;
+
+                    const float minimumDistance = 100f;
+
+                    // Punkt 100 Pixel vor dem Spieler
+                    Vector2 chaseTarget =
+                        playerPos - direction * minimumDistance;
+
+                    Vector2 toTarget =
+                        chaseTarget - CurrentPosition;
+
+                    float targetDistance =
+                        toTarget.Length();
+
+                    // Auge schaut immer direkt zum Spieler
+                    float liveAngle =
+                        MathF.Atan2(
+                            toPlayer.Y,
+                            toPlayer.X);
+
+                    GazeAngle =
+                        MathUtil.RotateTowards(
+                            GazeAngle,
+                            liveAngle,
+                            AlertTurnRate * dt);
+
+                    // Nur bis zum Mindestabstand bewegen
+                    if (targetDistance > 1f)
+                    {
+                        float step =
+                            MathF.Min(
+                                targetDistance,
+                                GameConstants.EyeMoveSpeed * 1.8f * dt);
+
+                        CurrentPosition +=
+                            toTarget / targetDistance * step;
+                    }
+                }
+
+                return;
+            }
+
+            Vector2 target =
+                LastKnownPlayerPos ?? CurrentPosition;
+
+            Vector2 diff =
+                target - CurrentPosition;
+
+            float distanceToTarget =
+                diff.Length();
+
+            if (distanceToTarget > 0.01f)
+            {
+                float angle =
+                    MathF.Atan2(
+                        diff.Y,
+                        diff.X);
+
+                GazeAngle =
+                    MathUtil.RotateTowards(
+                        GazeAngle,
+                        angle,
+                        AlertTurnRate * 0.7f * dt);
+
+                float step =
+                    MathF.Min(
+                        distanceToTarget,
+                        GameConstants.EyeMoveSpeed * 1.8f * dt);
+
+                CurrentPosition +=
+                    diff / distanceToTarget * step;
+            }
+
+            if (distanceToTarget <= GameConstants.EyeArriveThreshold)
+            {
+                EnterSearching();
+            }
+        }
+
+        // ============================================================
+        // SEARCHING
+        // ============================================================
 
         private void UpdateSearching(float dt)
         {
             _searchSegmentTimer -= dt;
+
             if (_searchSegmentTimer <= 0f)
             {
-                _searchSegmentIndex = (_searchSegmentIndex + 1) % SearchOffsets.Length;
-                _searchSegmentTimer = Lerp(GameConstants.SearchSegmentMinDuration, GameConstants.SearchSegmentMaxDuration, (float)_rng.NextDouble());
+                _searchSegmentIndex =
+                    (_searchSegmentIndex + 1)
+                    % SearchOffsets.Length;
+
+                _searchSegmentTimer =
+                    Lerp(
+                        GameConstants.SearchSegmentMinDuration,
+                        GameConstants.SearchSegmentMaxDuration,
+                        (float)_rng.NextDouble());
             }
 
-            float target = _searchBaseAngle + SearchOffsets[_searchSegmentIndex];
-            GazeAngle = MathUtil.RotateTowards(GazeAngle, target, SearchTurnRate * dt);
+            float target =
+                _searchBaseAngle +
+                SearchOffsets[_searchSegmentIndex];
+
+            GazeAngle =
+                MathUtil.RotateTowards(
+                    GazeAngle,
+                    target,
+                    SearchTurnRate * dt);
 
             _searchStateTimer += dt;
+
             if (_searchStateTimer >= _searchDuration)
             {
                 State = EyeState.Returning;
             }
         }
 
-        private void UpdateReturning(float dt, Func<Vector2, float, bool> collidesWithWall)
-        {
-            MoveToward(HomePosition, dt, collidesWithWall);
-            AimGazeTowardsMovement(HomePosition, ReturnGazeTurnRate, dt);
+        // ============================================================
+        // RETURNING
+        // ============================================================
 
-            if (Vector2.Distance(CurrentPosition, HomePosition) <= GameConstants.EyeArriveThreshold)
+        private void UpdateReturning(
+            float dt,
+            Func<Vector2, float, bool> collidesWithWall)
+        {
+            Vector2 diff = HomePosition - CurrentPosition;
+
+            float distance = diff.Length();
+
+            if (distance > 0.01f)
+            {
+                float angle =
+                    MathF.Atan2(
+                        diff.Y,
+                        diff.X);
+
+                GazeAngle =
+                    MathUtil.RotateTowards(
+                        GazeAngle,
+                        angle,
+                        ReturnGazeTurnRate * dt);
+
+                float step =
+                    MathF.Min(
+                        distance,
+                        GameConstants.EyeMoveSpeed * dt);
+
+                // Beim Zurückkehren werden Wände ignoriert.
+                CurrentPosition +=
+                    diff / distance * step;
+            }
+
+            if (distance <= GameConstants.EyeArriveThreshold)
             {
                 CurrentPosition = HomePosition;
+
                 State = EyeState.Idle;
-                _idleHoldTimer = 0f; // sofort neue Blickrichtung im nächsten Frame wählen
+
+                _hasMovementTarget = false;
+                _movementWaitTimer = 0f;
             }
         }
+
+        // ============================================================
+        // SEARCH START
+        // ============================================================
 
         private void EnterSearching()
         {
             State = EyeState.Searching;
+
             _searchBaseAngle = GazeAngle;
+
             _searchSegmentIndex = 0;
-            _searchSegmentTimer = Lerp(GameConstants.SearchSegmentMinDuration, GameConstants.SearchSegmentMaxDuration, (float)_rng.NextDouble());
+
+            _searchSegmentTimer =
+                Lerp(
+                    GameConstants.SearchSegmentMinDuration,
+                    GameConstants.SearchSegmentMaxDuration,
+                    (float)_rng.NextDouble());
+
             _searchStateTimer = 0f;
-            _searchDuration = Lerp(GameConstants.SearchMinDuration, GameConstants.SearchMaxDuration, (float)_rng.NextDouble());
+
+            _searchDuration =
+                Lerp(
+                    GameConstants.SearchMinDuration,
+                    GameConstants.SearchMaxDuration,
+                    (float)_rng.NextDouble());
         }
 
-        private void AimGazeTowardsMovement(Vector2 target, float turnRate, float dt)
-        {
-            Vector2 diff = target - CurrentPosition;
-            if (diff.LengthSquared() < 0.01f) return;
-            float angle = MathF.Atan2(diff.Y, diff.X);
-            GazeAngle = MathUtil.RotateTowards(GazeAngle, angle, turnRate * dt);
-        }
+        // ============================================================
+        // BEWEGUNG
+        // ============================================================
 
-        private void MoveToward(Vector2 target, float dt, Func<Vector2, float, bool> collidesWithWall)
+        private void MoveToward(
+            Vector2 target,
+            float dt,
+            Func<Vector2, float, bool> collidesWithWall)
         {
             Vector2 diff = target - CurrentPosition;
+
             float distance = diff.Length();
-            if (distance < 0.01f) return;
 
-            float step = MathF.Min(distance, GameConstants.EyeMoveSpeed * dt);
-            Vector2 move = diff / distance * step;
+            if (distance < 0.01f)
+                return;
 
-            Vector2 candidateX = new Vector2(CurrentPosition.X + move.X, CurrentPosition.Y);
-            if (!collidesWithWall(candidateX, GameConstants.EyeRadius)) CurrentPosition = candidateX;
+            float step = MathF.Min(
+                distance,
+                GameConstants.EyeMoveSpeed * dt);
 
-            Vector2 candidateY = new Vector2(CurrentPosition.X, CurrentPosition.Y + move.Y);
-            if (!collidesWithWall(candidateY, GameConstants.EyeRadius)) CurrentPosition = candidateY;
+            Vector2 move =
+                diff / distance * step;
+
+            Vector2 newPosition =
+                CurrentPosition + move;
+
+            if (!collidesWithWall(
+                    newPosition,
+                    GameConstants.EyeRadius))
+            {
+                CurrentPosition = newPosition;
+            }
         }
 
-        private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+        private void AimGazeTowardsMovement(
+            Vector2 target,
+            float turnRate,
+            float dt)
+        {
+            Vector2 diff =
+                target - CurrentPosition;
+
+            if (diff.LengthSquared() < 0.01f)
+                return;
+
+            float angle =
+                MathF.Atan2(
+                    diff.Y,
+                    diff.X);
+
+            GazeAngle =
+                MathUtil.RotateTowards(
+                    GazeAngle,
+                    angle,
+                    turnRate * dt);
+        }
+
+        // ============================================================
+        // RANDOM
+        // ============================================================
+
+        private float RandomWaitTime()
+        {
+            return 0.5f +
+                   (float)_rng.NextDouble() * 1.8f;
+        }
+
+        private float RandomLookTime()
+        {
+            return 0.5f +
+                   (float)_rng.NextDouble() * 1.2f;
+        }
+
+        private static float Lerp(
+            float a,
+            float b,
+            float t)
+        {
+            return a + (b - a) * t;
+        }
     }
 }
