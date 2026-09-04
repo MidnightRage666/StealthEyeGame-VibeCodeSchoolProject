@@ -11,10 +11,10 @@ namespace StealthEyeGame.Systems
         Dynamite,
         MaxHpUpgrade,
         StrongerDynamite,
+        Medkit,
 
         // Für die Zukunft vorbereitet, aktuell noch nicht im Katalog gelistet:
         StrongerDynamiteMk2,
-        Medkit,
         Invisibility,
         NoiseMaker,
         Emp,

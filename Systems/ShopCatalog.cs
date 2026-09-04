@@ -46,7 +46,7 @@ namespace StealthEyeGame.Systems
                 canPurchase: _ => true,
                 apply: p => p.MedkitsOwned += 1,
                 getOwnedLabel: p => $"Besitz: {p.MedkitsOwned}"
-            )
+            ),
         };
     }
 }
