@@ -8,8 +8,5 @@ namespace StealthEyeGame.Levels
 
         /// <summary>Normale, unzerstörbare Wand.</summary>
         Solid,
-
-        /// <summary>Angeknackste Wand - kann durch eine Explosion zerstört werden.</summary>
-        Cracked
     }
 }
