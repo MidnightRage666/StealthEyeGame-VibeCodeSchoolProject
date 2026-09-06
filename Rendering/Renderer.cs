@@ -44,6 +44,10 @@ namespace StealthEyeGame.Rendering
         public Rectangle PauseSaveButtonRect { get; private set; }
         public Rectangle PauseMainMenuButtonRect { get; private set; }
         public Rectangle PauseExitButtonRect { get; private set; }
+        public Rectangle SaveSlot1ButtonRect { get; private set; }
+        public Rectangle SaveSlot2ButtonRect { get; private set; }
+        public Rectangle SaveSlot3ButtonRect { get; private set; }
+        public Rectangle SaveBackButtonRect { get; private set; }
         public List<(ShopItemType ItemType, Rectangle Rect)> ShopBuyButtonRects { get; } = new();
 
         public void Draw(Graphics g, GameManager gm, PointF mouseFieldPos)
@@ -66,6 +70,12 @@ namespace StealthEyeGame.Rendering
             if (gm.State == GameState.Shop)
             {
                 DrawShopScreen(g, gm);
+                return;
+            }
+
+            if (gm.State == GameState.SaveMenu)
+            {
+                DrawSaveMenu(g, gm);
                 return;
             }
 
@@ -1628,6 +1638,150 @@ namespace StealthEyeGame.Rendering
                 whiteBrush,
                 textRect,
                 left);
+        }
+
+        private void DrawSaveMenu(Graphics g, GameManager gm)
+        {
+            g.Clear(BackgroundColor);
+
+            using Font titleFont =
+                new Font(
+                    "Segoe UI",
+                    32,
+                    FontStyle.Bold);
+
+            using Font buttonFont =
+                new Font(
+                    "Segoe UI",
+                    18,
+                    FontStyle.Bold);
+
+            using Brush whiteBrush =
+                new SolidBrush(Color.White);
+
+            using Brush buttonBrush =
+                new SolidBrush(
+                    Color.FromArgb(
+                        255,
+                        60,
+                        130,
+                        220));
+
+            StringFormat center =
+                new StringFormat
+                {
+                    Alignment =
+                        StringAlignment.Center,
+
+                    LineAlignment =
+                        StringAlignment.Center
+                };
+
+            g.DrawString(
+                "SPEICHERN UNTER",
+                titleFont,
+                whiteBrush,
+                new Rectangle(
+                    0,
+                    40,
+                    GameConstants.CanvasWidth,
+                    60),
+                center);
+
+            int buttonWidth = 600;
+            int buttonHeight = 70;
+
+            int x =
+                (GameConstants.CanvasWidth -
+                 buttonWidth) / 2;
+
+            int startY = 140;
+            int spacing = 90;
+
+            SaveSlot1ButtonRect =
+                new Rectangle(
+                    x,
+                    startY,
+                    buttonWidth,
+                    buttonHeight);
+
+            SaveSlot2ButtonRect =
+                new Rectangle(
+                    x,
+                    startY + spacing,
+                    buttonWidth,
+                    buttonHeight);
+
+            SaveSlot3ButtonRect =
+                new Rectangle(
+                    x,
+                    startY + spacing * 2,
+                    buttonWidth,
+                    buttonHeight);
+
+            SaveBackButtonRect =
+                new Rectangle(
+                    x,
+                    startY + spacing * 3,
+                    buttonWidth,
+                    buttonHeight);
+
+            DrawSaveButton(
+                g,
+                SaveSlot1ButtonRect,
+                "SPEICHERPLATZ 1",
+                buttonBrush,
+                buttonFont,
+                whiteBrush,
+                center);
+
+            DrawSaveButton(
+                g,
+                SaveSlot2ButtonRect,
+                "SPEICHERPLATZ 2",
+                buttonBrush,
+                buttonFont,
+                whiteBrush,
+                center);
+
+            DrawSaveButton(
+                g,
+                SaveSlot3ButtonRect,
+                "SPEICHERPLATZ 3",
+                buttonBrush,
+                buttonFont,
+                whiteBrush,
+                center);
+
+            DrawSaveButton(
+                g,
+                SaveBackButtonRect,
+                "ZURÜCK",
+                buttonBrush,
+                buttonFont,
+                whiteBrush,
+                center);
+        }
+
+        private void DrawSaveButton(
+        Graphics g,
+        Rectangle rect,
+        string text,
+        Brush buttonBrush,
+        Font font,
+        Brush textBrush,
+        StringFormat center)
+        {
+            g.FillRectangle(
+                buttonBrush,
+                rect);
+
+            g.DrawString(
+                text,
+                font,
+                textBrush,
+                rect,
+                center);
         }
     }
 }

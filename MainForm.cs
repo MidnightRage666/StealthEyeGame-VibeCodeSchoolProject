@@ -172,7 +172,7 @@ namespace StealthEyeGame
                     }
                     else if (_renderer.PauseSaveButtonRect.Contains(e.Location))
                     {
-                        _gameManager.SaveGame();
+                        _gameManager.OpenSaveMenu();
                     }
                     else if (_renderer.PauseMainMenuButtonRect.Contains(e.Location))
                     {
@@ -183,6 +183,28 @@ namespace StealthEyeGame
                         Application.Exit();
                     }
 
+                    break;
+
+                case GameState.SaveMenu:
+                    if (_renderer.SaveSlot1ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.SaveGame(1);
+                        _gameManager.CloseSaveMenu();
+                    }
+                    else if (_renderer.SaveSlot2ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.SaveGame(2);
+                        _gameManager.CloseSaveMenu();
+                    }
+                    else if (_renderer.SaveSlot3ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.SaveGame(3);
+                        _gameManager.CloseSaveMenu();
+                    }
+                    else if (_renderer.SaveBackButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.CloseSaveMenu();
+                    }
                     break;
             }
         }

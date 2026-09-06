@@ -15,6 +15,7 @@ namespace StealthEyeGame.Core
         Shop,
         Paused,
         LoadMenu,
+        SaveMenu,
         NewGameConfirmation
     }
 
@@ -84,10 +85,10 @@ namespace StealthEyeGame.Core
                 SpawnProtectionDuration;
         }
 
-        public bool SaveGame()
+        public bool SaveGame(int slot)
         {
-            if (State != GameState.Playing &&
-                State != GameState.Paused)
+            if (State != GameState.Paused &&
+                State != GameState.SaveMenu)
             {
                 return false;
             }
@@ -104,6 +105,7 @@ namespace StealthEyeGame.Core
 
                 PlayerX = Player.Position.X,
                 PlayerY = Player.Position.Y,
+
                 PlayerHealth = Player.HP,
 
                 Coins = Progress.Coins,
@@ -111,10 +113,15 @@ namespace StealthEyeGame.Core
                 MedkitsOwned = Progress.MedkitsOwned,
 
                 BonusMaxHP = Progress.BonusMaxHP,
-                HasStrongerDynamite = Progress.HasStrongerDynamite
+                HasStrongerDynamite =
+                    Progress.HasStrongerDynamite,
+
+                SaveDate = DateTime.Now
             };
 
-            return SaveSystem.Save(1, data);
+            return SaveSystem.Save(
+                slot,
+                data);
         }
 
         public void TogglePause()
@@ -213,6 +220,19 @@ namespace StealthEyeGame.Core
         public void OpenLoadMenu()
         {
             State = GameState.LoadMenu;
+        }
+
+        public void OpenSaveMenu()
+        {
+            if (State != GameState.Paused)
+                return;
+
+            State = GameState.SaveMenu;
+        }
+
+        public void CloseSaveMenu()
+        {
+            State = GameState.Paused;
         }
 
         public bool LoadGame(int slot)
