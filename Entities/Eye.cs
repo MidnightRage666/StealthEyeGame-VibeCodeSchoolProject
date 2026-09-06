@@ -6,10 +6,10 @@ namespace StealthEyeGame.Entities
 {
     public class Eye
     {
-        public Vector2 HomePosition { get; }
+        public Vector2 HomePosition { get; private set; }
         public Vector2 CurrentPosition { get; private set; }
 
-        public float FacingAngle { get; }
+        public float FacingAngle { get; private set; }
         public float GazeAngle { get; private set; }
 
         public float VisionRange { get; }
@@ -35,7 +35,6 @@ namespace StealthEyeGame.Entities
 
         private float _movementWaitTimer;
 
-        // Blickverhalten während des Laufens
         private float _walkLookTimer;
         private float _walkLookOffset;
 
@@ -46,7 +45,6 @@ namespace StealthEyeGame.Entities
         private const float ReturnGazeTurnRate = 3.0f;
         private const float SearchTurnRate = 3.5f;
 
-        // Wie weit das Auge beim normalen Herumlaufen schauen darf
         private const float RandomLookAngle = 0.65f;
 
         // ------------------------------------------------------------
@@ -100,10 +98,53 @@ namespace StealthEyeGame.Entities
 
             _rng = new Random(seed);
 
-            // Beim Start erstmal kurze Pause,
-            // danach sucht sich das Auge sein erstes Ziel.
             _movementWaitTimer = RandomWaitTime();
             _walkLookTimer = RandomLookTime();
+        }
+
+        // ============================================================
+        // SAVEGAME
+        // ============================================================
+
+        public void RestoreSaveState(
+            Vector2 homePosition,
+            Vector2 currentPosition,
+            float facingAngle,
+            float gazeAngle,
+            float hp,
+            EyeState state)
+        {
+            HomePosition = homePosition;
+            CurrentPosition = currentPosition;
+
+            FacingAngle = facingAngle;
+            GazeAngle = gazeAngle;
+
+            HP = MathF.Max(
+                0f,
+                MathF.Min(
+                    hp,
+                    GameConstants.EyeMaxHP));
+
+            State = state;
+
+            DetectedThisFrame = false;
+            LastKnownPlayerPos = null;
+
+            _movementTarget = currentPosition;
+            _hasMovementTarget = false;
+            _isPreparingMovement = false;
+
+            _movementWaitTimer = 0f;
+            _walkLookTimer = RandomLookTime();
+
+            _investigationTarget = currentPosition;
+
+            _searchBaseAngle = gazeAngle;
+            _searchSegmentIndex = 0;
+            _searchSegmentTimer = 0f;
+            _searchStateTimer = 0f;
+            _searchDuration = 0f;
         }
 
         public void NotifyNoise(Vector2 sourcePosition)
@@ -118,7 +159,9 @@ namespace StealthEyeGame.Entities
 
         public void TakeExplosionDamage(float damage)
         {
-            HP = MathF.Max(0f, HP - damage);
+            HP = MathF.Max(
+                0f,
+                HP - damage);
         }
 
         public void Update(
@@ -130,16 +173,21 @@ namespace StealthEyeGame.Entities
             if (IsDestroyed)
                 return;
 
-            bool wasDetectedLastFrame = DetectedThisFrame;
+            bool wasDetectedLastFrame =
+                DetectedThisFrame;
 
             switch (State)
             {
                 case EyeState.Idle:
-                    UpdateIdle(dt, collidesWithWall);
+                    UpdateIdle(
+                        dt,
+                        collidesWithWall);
                     break;
 
                 case EyeState.Investigation:
-                    UpdateInvestigation(dt, collidesWithWall);
+                    UpdateInvestigation(
+                        dt,
+                        collidesWithWall);
                     break;
 
                 case EyeState.Alert:
@@ -155,25 +203,31 @@ namespace StealthEyeGame.Entities
                     break;
 
                 case EyeState.Returning:
-                    UpdateReturning(dt, collidesWithWall);
+                    UpdateReturning(
+                        dt,
+                        collidesWithWall);
                     break;
             }
 
-            // --------------------------------------------------------
-            // Echte Sichtprüfung
-            // --------------------------------------------------------
+            Vector2 toPlayer =
+                playerPos -
+                CurrentPosition;
 
-            Vector2 toPlayer = playerPos - CurrentPosition;
-            float distance = toPlayer.Length();
+            float distance =
+                toPlayer.Length();
 
-            bool inRange = distance <= VisionRange;
+            bool inRange =
+                distance <= VisionRange;
 
             bool inAngle = false;
 
-            if (inRange && distance > 0.001f)
+            if (inRange &&
+                distance > 0.001f)
             {
                 float angleToPlayer =
-                    MathF.Atan2(toPlayer.Y, toPlayer.X);
+                    MathF.Atan2(
+                        toPlayer.Y,
+                        toPlayer.X);
 
                 inAngle =
                     MathF.Abs(
@@ -185,26 +239,31 @@ namespace StealthEyeGame.Entities
 
             bool clearLine =
                 inAngle &&
-                !hasWallBetween(CurrentPosition, playerPos);
+                !hasWallBetween(
+                    CurrentPosition,
+                    playerPos);
 
-            DetectedThisFrame = clearLine;
+            DetectedThisFrame =
+                clearLine;
 
             if (DetectedThisFrame)
             {
-                LastKnownPlayerPos = playerPos;
-                State = EyeState.Alert;
+                LastKnownPlayerPos =
+                    playerPos;
+
+                State =
+                    EyeState.Alert;
             }
         }
 
         // ============================================================
-        // IDLE / NORMALES HERUMLAUFEN
+        // IDLE
         // ============================================================
 
         private void UpdateIdle(
             float dt,
             Func<Vector2, float, bool> collidesWithWall)
         {
-            // Noch kein Ziel?
             if (!_hasMovementTarget)
             {
                 _movementWaitTimer -= dt;
@@ -213,20 +272,18 @@ namespace StealthEyeGame.Entities
 
                 if (_movementWaitTimer <= 0f)
                 {
-                    FindNewMovementTarget(collidesWithWall);
+                    FindNewMovementTarget(
+                        collidesWithWall);
                 }
 
                 return;
             }
 
-            // ------------------------------------------------------------
-            // Erst in Richtung des neuen Ziels drehen
-            // ------------------------------------------------------------
-
             if (_isPreparingMovement)
             {
                 Vector2 direction =
-                    _movementTarget - CurrentPosition;
+                    _movementTarget -
+                    CurrentPosition;
 
                 if (direction.LengthSquared() > 0.01f)
                 {
@@ -247,8 +304,6 @@ namespace StealthEyeGame.Entities
                                 GazeAngle,
                                 targetAngle));
 
-                    // Erst loslaufen, wenn das Auge
-                    // fast vollständig in die Richtung schaut.
                     if (angleDifference < 0.12f)
                     {
                         _isPreparingMovement = false;
@@ -257,10 +312,6 @@ namespace StealthEyeGame.Entities
 
                 return;
             }
-
-            // ------------------------------------------------------------
-            // Jetzt tatsächlich laufen
-            // ------------------------------------------------------------
 
             MoveToward(
                 _movementTarget,
@@ -276,12 +327,15 @@ namespace StealthEyeGame.Entities
                     _movementTarget)
                 <= GameConstants.EyeArriveThreshold)
             {
-                CurrentPosition = _movementTarget;
+                CurrentPosition =
+                    _movementTarget;
 
                 _hasMovementTarget = false;
                 _isPreparingMovement = false;
 
-                _movementWaitTimer = RandomWaitTime();
+                _movementWaitTimer =
+                    RandomWaitTime();
+
                 _walkLookTimer = 0f;
             }
         }
@@ -292,19 +346,22 @@ namespace StealthEyeGame.Entities
             for (int i = 0; i < 40; i++)
             {
                 float angle =
-                    (float)(_rng.NextDouble() * MathF.Tau);
+                    (float)(
+                        _rng.NextDouble() *
+                        MathF.Tau);
 
                 float distance =
                     100f +
-                    (float)_rng.NextDouble() * 180f;
+                    (float)_rng.NextDouble() *
+                    180f;
 
                 Vector2 target =
                     CurrentPosition +
                     new Vector2(
                         MathF.Cos(angle),
-                        MathF.Sin(angle)) * distance;
+                        MathF.Sin(angle)) *
+                    distance;
 
-                // Ziel muss frei sein
                 if (collidesWithWall(
                         target,
                         GameConstants.EyeRadius))
@@ -312,15 +369,17 @@ namespace StealthEyeGame.Entities
                     continue;
                 }
 
-                // Den kompletten Weg zum Ziel prüfen,
-                // damit das Auge nicht durch eine Wand laufen will.
                 bool pathBlocked = false;
 
                 const int pathChecks = 8;
 
-                for (int step = 1; step <= pathChecks; step++)
+                for (int step = 1;
+                     step <= pathChecks;
+                     step++)
                 {
-                    float t = step / (float)pathChecks;
+                    float t =
+                        step /
+                        (float)pathChecks;
 
                     Vector2 checkPosition =
                         Vector2.Lerp(
@@ -340,22 +399,21 @@ namespace StealthEyeGame.Entities
                 if (pathBlocked)
                     continue;
 
-                // Gültiges Bewegungsziel gefunden
-                _movementTarget = target;
-                _hasMovementTarget = true;
+                _movementTarget =
+                    target;
 
-                // WICHTIG:
-                // Noch NICHT sofort drehen.
-                // Erst wird der Sichtkegel langsam zum Ziel geschwenkt.
-                _isPreparingMovement = true;
+                _hasMovementTarget =
+                    true;
 
-                _walkLookTimer = RandomLookTime();
+                _isPreparingMovement =
+                    true;
+
+                _walkLookTimer =
+                    RandomLookTime();
 
                 return;
             }
 
-            // Kein vernünftiges Ziel gefunden.
-            // Lieber kurz stehen bleiben als herumzuzappeln.
             _hasMovementTarget = false;
             _isPreparingMovement = false;
             _movementWaitTimer = 0.5f;
@@ -370,7 +428,8 @@ namespace StealthEyeGame.Entities
             Vector2 movementTarget)
         {
             Vector2 movement =
-                movementTarget - CurrentPosition;
+                movementTarget -
+                CurrentPosition;
 
             if (movement.LengthSquared() < 0.01f)
                 return;
@@ -384,8 +443,6 @@ namespace StealthEyeGame.Entities
 
             if (_walkLookTimer <= 0f)
             {
-                // Meistens nach vorne schauen.
-                // Manchmal leicht links/rechts.
                 float random =
                     (float)_rng.NextDouble();
 
@@ -397,15 +454,17 @@ namespace StealthEyeGame.Entities
                 {
                     _walkLookOffset =
                         (float)(
-                            (_rng.NextDouble() * 2.0 - 1.0)
-                            * RandomLookAngle);
+                            (_rng.NextDouble() * 2.0 - 1.0) *
+                            RandomLookAngle);
                 }
 
-                _walkLookTimer = RandomLookTime();
+                _walkLookTimer =
+                    RandomLookTime();
             }
 
             float targetAngle =
-                movementAngle + _walkLookOffset;
+                movementAngle +
+                _walkLookOffset;
 
             GazeAngle =
                 MathUtil.RotateTowards(
@@ -431,15 +490,17 @@ namespace StealthEyeGame.Entities
                 {
                     _walkLookOffset =
                         (float)(
-                            (_rng.NextDouble() * 2.0 - 1.0)
-                            * 1.3f);
+                            (_rng.NextDouble() * 2.0 - 1.0) *
+                            1.3f);
                 }
 
-                _walkLookTimer = RandomLookTime();
+                _walkLookTimer =
+                    RandomLookTime();
             }
 
             float targetAngle =
-                FacingAngle + _walkLookOffset;
+                FacingAngle +
+                _walkLookOffset;
 
             GazeAngle =
                 MathUtil.RotateTowards(
@@ -488,28 +549,32 @@ namespace StealthEyeGame.Entities
             if (wasDetectedLastFrame)
             {
                 Vector2 toPlayer =
-                    playerPos - CurrentPosition;
+                    playerPos -
+                    CurrentPosition;
 
-                float distance = toPlayer.Length();
+                float distance =
+                    toPlayer.Length();
 
                 if (distance > 0.01f)
                 {
                     Vector2 direction =
-                        toPlayer / distance;
+                        toPlayer /
+                        distance;
 
                     const float minimumDistance = 100f;
 
-                    // Punkt 100 Pixel vor dem Spieler
                     Vector2 chaseTarget =
-                        playerPos - direction * minimumDistance;
+                        playerPos -
+                        direction *
+                        minimumDistance;
 
                     Vector2 toTarget =
-                        chaseTarget - CurrentPosition;
+                        chaseTarget -
+                        CurrentPosition;
 
                     float targetDistance =
                         toTarget.Length();
 
-                    // Auge schaut immer direkt zum Spieler
                     float liveAngle =
                         MathF.Atan2(
                             toPlayer.Y,
@@ -521,16 +586,19 @@ namespace StealthEyeGame.Entities
                             liveAngle,
                             AlertTurnRate * dt);
 
-                    // Nur bis zum Mindestabstand bewegen
                     if (targetDistance > 1f)
                     {
                         float step =
                             MathF.Min(
                                 targetDistance,
-                                GameConstants.EyeMoveSpeed * 1.8f * dt);
+                                GameConstants.EyeMoveSpeed *
+                                1.8f *
+                                dt);
 
                         CurrentPosition +=
-                            toTarget / targetDistance * step;
+                            toTarget /
+                            targetDistance *
+                            step;
                     }
                 }
 
@@ -538,10 +606,12 @@ namespace StealthEyeGame.Entities
             }
 
             Vector2 target =
-                LastKnownPlayerPos ?? CurrentPosition;
+                LastKnownPlayerPos ??
+                CurrentPosition;
 
             Vector2 diff =
-                target - CurrentPosition;
+                target -
+                CurrentPosition;
 
             float distanceToTarget =
                 diff.Length();
@@ -557,18 +627,25 @@ namespace StealthEyeGame.Entities
                     MathUtil.RotateTowards(
                         GazeAngle,
                         angle,
-                        AlertTurnRate * 0.7f * dt);
+                        AlertTurnRate *
+                        0.7f *
+                        dt);
 
                 float step =
                     MathF.Min(
                         distanceToTarget,
-                        GameConstants.EyeMoveSpeed * 1.8f * dt);
+                        GameConstants.EyeMoveSpeed *
+                        1.8f *
+                        dt);
 
                 CurrentPosition +=
-                    diff / distanceToTarget * step;
+                    diff /
+                    distanceToTarget *
+                    step;
             }
 
-            if (distanceToTarget <= GameConstants.EyeArriveThreshold)
+            if (distanceToTarget <=
+                GameConstants.EyeArriveThreshold)
             {
                 EnterSearching();
             }
@@ -585,8 +662,8 @@ namespace StealthEyeGame.Entities
             if (_searchSegmentTimer <= 0f)
             {
                 _searchSegmentIndex =
-                    (_searchSegmentIndex + 1)
-                    % SearchOffsets.Length;
+                    (_searchSegmentIndex + 1) %
+                    SearchOffsets.Length;
 
                 _searchSegmentTimer =
                     Lerp(
@@ -597,7 +674,8 @@ namespace StealthEyeGame.Entities
 
             float target =
                 _searchBaseAngle +
-                SearchOffsets[_searchSegmentIndex];
+                SearchOffsets[
+                    _searchSegmentIndex];
 
             GazeAngle =
                 MathUtil.RotateTowards(
@@ -607,9 +685,11 @@ namespace StealthEyeGame.Entities
 
             _searchStateTimer += dt;
 
-            if (_searchStateTimer >= _searchDuration)
+            if (_searchStateTimer >=
+                _searchDuration)
             {
-                State = EyeState.Returning;
+                State =
+                    EyeState.Returning;
             }
         }
 
@@ -621,9 +701,12 @@ namespace StealthEyeGame.Entities
             float dt,
             Func<Vector2, float, bool> collidesWithWall)
         {
-            Vector2 diff = HomePosition - CurrentPosition;
+            Vector2 diff =
+                HomePosition -
+                CurrentPosition;
 
-            float distance = diff.Length();
+            float distance =
+                diff.Length();
 
             if (distance > 0.01f)
             {
@@ -641,18 +724,23 @@ namespace StealthEyeGame.Entities
                 float step =
                     MathF.Min(
                         distance,
-                        GameConstants.EyeMoveSpeed * dt);
+                        GameConstants.EyeMoveSpeed *
+                        dt);
 
-                // Beim Zurückkehren werden Wände ignoriert.
                 CurrentPosition +=
-                    diff / distance * step;
+                    diff /
+                    distance *
+                    step;
             }
 
-            if (distance <= GameConstants.EyeArriveThreshold)
+            if (distance <=
+                GameConstants.EyeArriveThreshold)
             {
-                CurrentPosition = HomePosition;
+                CurrentPosition =
+                    HomePosition;
 
-                State = EyeState.Idle;
+                State =
+                    EyeState.Idle;
 
                 _hasMovementTarget = false;
                 _movementWaitTimer = 0f;
@@ -665,9 +753,11 @@ namespace StealthEyeGame.Entities
 
         private void EnterSearching()
         {
-            State = EyeState.Searching;
+            State =
+                EyeState.Searching;
 
-            _searchBaseAngle = GazeAngle;
+            _searchBaseAngle =
+                GazeAngle;
 
             _searchSegmentIndex = 0;
 
@@ -695,28 +785,37 @@ namespace StealthEyeGame.Entities
             float dt,
             Func<Vector2, float, bool> collidesWithWall)
         {
-            Vector2 diff = target - CurrentPosition;
+            Vector2 diff =
+                target -
+                CurrentPosition;
 
-            float distance = diff.Length();
+            float distance =
+                diff.Length();
 
             if (distance < 0.01f)
                 return;
 
-            float step = MathF.Min(
-                distance,
-                GameConstants.EyeMoveSpeed * dt);
+            float step =
+                MathF.Min(
+                    distance,
+                    GameConstants.EyeMoveSpeed *
+                    dt);
 
             Vector2 move =
-                diff / distance * step;
+                diff /
+                distance *
+                step;
 
             Vector2 newPosition =
-                CurrentPosition + move;
+                CurrentPosition +
+                move;
 
             if (!collidesWithWall(
                     newPosition,
                     GameConstants.EyeRadius))
             {
-                CurrentPosition = newPosition;
+                CurrentPosition =
+                    newPosition;
             }
         }
 
@@ -726,7 +825,8 @@ namespace StealthEyeGame.Entities
             float dt)
         {
             Vector2 diff =
-                target - CurrentPosition;
+                target -
+                CurrentPosition;
 
             if (diff.LengthSquared() < 0.01f)
                 return;
@@ -750,13 +850,15 @@ namespace StealthEyeGame.Entities
         private float RandomWaitTime()
         {
             return 0.5f +
-                   (float)_rng.NextDouble() * 1.8f;
+                   (float)_rng.NextDouble() *
+                   1.8f;
         }
 
         private float RandomLookTime()
         {
             return 0.5f +
-                   (float)_rng.NextDouble() * 1.2f;
+                   (float)_rng.NextDouble() *
+                   1.2f;
         }
 
         private static float Lerp(
@@ -764,7 +866,9 @@ namespace StealthEyeGame.Entities
             float b,
             float t)
         {
-            return a + (b - a) * t;
+            return a +
+                   (b - a) *
+                   t;
         }
     }
 }

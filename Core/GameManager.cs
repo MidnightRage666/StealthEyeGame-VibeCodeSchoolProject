@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using StealthEyeGame.Entities;
 using StealthEyeGame.Levels;
@@ -23,14 +24,22 @@ namespace StealthEyeGame.Core
     {
         public Player Player { get; private set; } = null!;
         public Level CurrentLevel { get; private set; } = null!;
-        public int LevelNumber { get; private set; } = 1;
-        public GameState State { get; private set; } = GameState.Playing;
 
-        public PersistentProgress Progress { get; } = new PersistentProgress();
+        public int LevelNumber { get; private set; } = 1;
+
+        public GameState State { get; private set; } =
+            GameState.Playing;
+
+        public PersistentProgress Progress { get; } =
+            new PersistentProgress();
+
         public int RunCoinsEarned { get; private set; }
 
-        public System.Collections.Generic.List<Dynamite> PlacedDynamite { get; } = new();
-        public System.Collections.Generic.List<Explosion> ActiveExplosions { get; } = new();
+        public List<Dynamite> PlacedDynamite { get; } =
+            new();
+
+        public List<Explosion> ActiveExplosions { get; } =
+            new();
 
         public bool IsPlacingDynamite { get; private set; }
         public bool PlayerIsSpotted { get; private set; }
@@ -38,6 +47,7 @@ namespace StealthEyeGame.Core
 
         private float _totalTime;
         private float _transitionTimer;
+
         private const float TransitionDuration = 0.7f;
 
         private float _dashCooldownTimer = 0f;
@@ -45,6 +55,7 @@ namespace StealthEyeGame.Core
         private Vector2 _dashDirection = Vector2.Zero;
 
         private float _spawnProtectionTimer = 0f;
+
         private const float SpawnProtectionDuration = 1.0f;
 
         private const float DashSpeed = 900f;
@@ -53,19 +64,27 @@ namespace StealthEyeGame.Core
 
         private const float DynamitePlacementRadius = 200f;
 
-        private readonly Random _rng = new Random();
+        private readonly Random _rng =
+            new Random();
 
         public GameManager()
         {
-            State = GameState.MainMenu;
+            State =
+                GameState.MainMenu;
         }
+
+        // ============================================================
+        // NEUES SPIEL
+        // ============================================================
 
         public void StartNewGame()
         {
             LevelNumber = 1;
             _totalTime = 0f;
             RunCoinsEarned = 0;
-            State = GameState.Playing;
+
+            State =
+                GameState.Playing;
 
             IsPlacingDynamite = false;
 
@@ -100,6 +119,10 @@ namespace StealthEyeGame.Core
             }
         }
 
+        // ============================================================
+        // SPEICHERN
+        // ============================================================
+
         public bool SaveGame(int slot)
         {
             if (State != GameState.Paused &&
@@ -114,7 +137,10 @@ namespace StealthEyeGame.Core
                 return false;
             }
 
-            // WallGrid für das Savegame kopieren.
+            // --------------------------------------------------------
+            // WÄNDE
+            // --------------------------------------------------------
+
             int[][] wallGrid =
                 new int[GameConstants.Cols][];
 
@@ -130,14 +156,53 @@ namespace StealthEyeGame.Core
                      row++)
                 {
                     wallGrid[col][row] =
-                        (int)CurrentLevel.WallGrid[col, row];
+                        (int)CurrentLevel.WallGrid[
+                            col,
+                            row];
                 }
             }
+
+            // --------------------------------------------------------
+            // AUGEN
+            // --------------------------------------------------------
+
+            List<SavedEyeData> savedEyes =
+                new List<SavedEyeData>();
+
+            foreach (var eye in CurrentLevel.Eyes)
+            {
+                savedEyes.Add(
+                    new SavedEyeData
+                    {
+                        X =
+                            eye.CurrentPosition.X,
+
+                        Y =
+                            eye.CurrentPosition.Y,
+
+                        FacingAngle =
+                            eye.FacingAngle,
+
+                        GazeAngle =
+                            eye.GazeAngle,
+
+                        HP =
+                            eye.HP,
+
+                        State =
+                            (int)eye.State
+                    });
+            }
+
+            // --------------------------------------------------------
+            // SAVE-DATA
+            // --------------------------------------------------------
 
             SaveData data =
                 new SaveData
                 {
-                    CurrentLevel = LevelNumber,
+                    CurrentLevel =
+                        LevelNumber,
 
                     PlayerX =
                         Player.Position.X,
@@ -167,13 +232,38 @@ namespace StealthEyeGame.Core
                         DateTime.Now,
 
                     WallGrid =
-                        wallGrid
+                        wallGrid,
+
+                    PlayerStartX =
+                        CurrentLevel.PlayerStart.X,
+
+                    PlayerStartY =
+                        CurrentLevel.PlayerStart.Y,
+
+                    ExitX =
+                        CurrentLevel.ExitRect.X,
+
+                    ExitY =
+                        CurrentLevel.ExitRect.Y,
+
+                    ExitWidth =
+                        CurrentLevel.ExitRect.Width,
+
+                    ExitHeight =
+                        CurrentLevel.ExitRect.Height,
+
+                    Eyes =
+                        savedEyes
                 };
 
             return SaveSystem.Save(
                 slot,
                 data);
         }
+
+        // ============================================================
+        // PAUSE
+        // ============================================================
 
         public void TogglePause()
         {
@@ -191,27 +281,36 @@ namespace StealthEyeGame.Core
 
         public void GoToMainMenu()
         {
-            State = GameState.MainMenu;
+            State =
+                GameState.MainMenu;
+
             IsMovementPaused = true;
             IsPlacingDynamite = false;
         }
+
+        // ============================================================
+        // MENÜS
+        // ============================================================
 
         public void OpenShop() =>
             State = GameState.Shop;
 
         public void OpenLoadMenu()
         {
-            State = GameState.LoadMenu;
+            State =
+                GameState.LoadMenu;
         }
 
         public void OpenNewGameConfirmation()
         {
-            State = GameState.NewGameConfirmation;
+            State =
+                GameState.NewGameConfirmation;
         }
 
         public void CancelNewGame()
         {
-            State = GameState.MainMenu;
+            State =
+                GameState.MainMenu;
         }
 
         public void ConfirmNewGame()
@@ -224,13 +323,19 @@ namespace StealthEyeGame.Core
             if (State != GameState.Paused)
                 return;
 
-            State = GameState.SaveMenu;
+            State =
+                GameState.SaveMenu;
         }
 
         public void CloseSaveMenu()
         {
-            State = GameState.Paused;
+            State =
+                GameState.Paused;
         }
+
+        // ============================================================
+        // LADEN
+        // ============================================================
 
         public bool LoadGame(int slot)
         {
@@ -239,6 +344,10 @@ namespace StealthEyeGame.Core
 
             if (data == null)
                 return false;
+
+            // --------------------------------------------------------
+            // SPIELER-FORTSCHRITT
+            // --------------------------------------------------------
 
             LevelNumber =
                 data.CurrentLevel;
@@ -258,45 +367,143 @@ namespace StealthEyeGame.Core
             Progress.HasStrongerDynamite =
                 data.HasStrongerDynamite;
 
-            /*
-             * Wir erzeugen zunächst ein Level.
-             *
-             * Das brauchen wir momentan noch für:
-             * - Augen
-             * - Ausgang
-             * - PlayerStart
-             *
-             * Die Wände werden danach durch die
-             * gespeicherten Wände ersetzt.
-             */
+            // --------------------------------------------------------
+            // FALLBACK-LEVEL
+            // --------------------------------------------------------
+            //
+            // Wir brauchen die generierten Augen nur als Vorlage
+            // für ihre Werte wie VisionRange, Damage usw.
+            //
+            // Wände, Positionen und Ausgang werden anschließend
+            // durch die gespeicherten Daten ersetzt.
+            // --------------------------------------------------------
+
             Level generatedLevel =
                 LevelGenerator.Generate(
                     LevelNumber,
                     _rng);
 
+            // --------------------------------------------------------
+            // WÄNDE
+            // --------------------------------------------------------
+
+            WallType[,] restoredGrid;
+
             if (data.WallGrid != null)
             {
-                WallType[,] restoredGrid =
+                restoredGrid =
                     RestoreWallGrid(
                         data.WallGrid);
-
-                CurrentLevel =
-                    new Level(
-                        LevelNumber,
-                        restoredGrid,
-                        generatedLevel.PlayerStart,
-                        generatedLevel.ExitRect,
-                        generatedLevel.Eyes);
             }
             else
             {
-                /*
-                 * Falls ein altes Savegame geladen wird,
-                 * das noch kein WallGrid besitzt.
-                 */
-                CurrentLevel =
-                    generatedLevel;
+                restoredGrid =
+                    generatedLevel.WallGrid;
             }
+
+            // --------------------------------------------------------
+            // SPIELER-START
+            // --------------------------------------------------------
+
+            Vector2 playerStart;
+
+            if (data.PlayerStartX != 0 ||
+                data.PlayerStartY != 0)
+            {
+                playerStart =
+                    new Vector2(
+                        data.PlayerStartX,
+                        data.PlayerStartY);
+            }
+            else
+            {
+                playerStart =
+                    generatedLevel.PlayerStart;
+            }
+
+            // --------------------------------------------------------
+            // AUSGANG
+            // --------------------------------------------------------
+
+            System.Drawing.RectangleF exitRect;
+
+            if (data.ExitWidth > 0 &&
+                data.ExitHeight > 0)
+            {
+                exitRect =
+                    new System.Drawing.RectangleF(
+                        data.ExitX,
+                        data.ExitY,
+                        data.ExitWidth,
+                        data.ExitHeight);
+            }
+            else
+            {
+                exitRect =
+                    generatedLevel.ExitRect;
+            }
+
+            // --------------------------------------------------------
+            // AUGEN
+            // --------------------------------------------------------
+
+            List<Eye> restoredEyes =
+                new List<Eye>();
+
+            if (data.Eyes != null &&
+                data.Eyes.Count > 0)
+            {
+                int count =
+                    Math.Min(
+                        data.Eyes.Count,
+                        generatedLevel.Eyes.Count);
+
+                for (int i = 0;
+                     i < count;
+                     i++)
+                {
+                    Eye generatedEye =
+                        generatedLevel.Eyes[i];
+
+                    SavedEyeData savedEye =
+                        data.Eyes[i];
+
+                    generatedEye.RestoreSaveState(
+                        generatedEye.HomePosition,
+                        new Vector2(
+                            savedEye.X,
+                            savedEye.Y),
+                        savedEye.FacingAngle,
+                        savedEye.GazeAngle,
+                        savedEye.HP,
+                        (EyeState)savedEye.State);
+
+                    restoredEyes.Add(
+                        generatedEye);
+                }
+            }
+            else
+            {
+                // Alte Savegames ohne Eye-Daten
+                restoredEyes =
+                    generatedLevel.Eyes;
+            }
+
+            // --------------------------------------------------------
+            // LEVEL ZUSAMMENBAUEN
+            // --------------------------------------------------------
+
+            CurrentLevel =
+                new Level(
+                    LevelNumber,
+                    restoredGrid,
+                    playerStart,
+                    exitRect,
+                    restoredEyes);
+
+            // --------------------------------------------------------
+            // SPIELER
+            // --------------------------------------------------------
 
             float maxHp =
                 GameConstants.PlayerBaseMaxHP +
@@ -312,6 +519,10 @@ namespace StealthEyeGame.Core
             Player.RestoreHealth(
                 data.PlayerHealth);
 
+            // --------------------------------------------------------
+            // RESET
+            // --------------------------------------------------------
+
             RunCoinsEarned = 0;
 
             IsPlacingDynamite = false;
@@ -324,11 +535,19 @@ namespace StealthEyeGame.Core
             _spawnProtectionTimer =
                 SpawnProtectionDuration;
 
+            _dashTimer = 0f;
+            _dashCooldownTimer = 0f;
+            _dashDirection = Vector2.Zero;
+
             State =
                 GameState.Playing;
 
             return true;
         }
+
+        // ============================================================
+        // WALL GRID WIEDERHERSTELLEN
+        // ============================================================
 
         private WallType[,] RestoreWallGrid(
             int[][] savedGrid)
@@ -347,16 +566,22 @@ namespace StealthEyeGame.Core
                      row++)
                 {
                     grid[col, row] =
-                        (WallType)savedGrid[col][row];
+                        (WallType)savedGrid[
+                            col][row];
                 }
             }
 
             return grid;
         }
 
+        // ============================================================
+        // NÄCHSTES LEVEL
+        // ============================================================
+
         private void LoadLevel(int number)
         {
-            LevelNumber = number;
+            LevelNumber =
+                number;
 
             CurrentLevel =
                 LevelGenerator.Generate(
@@ -369,6 +594,10 @@ namespace StealthEyeGame.Core
             _spawnProtectionTimer =
                 SpawnProtectionDuration;
         }
+
+        // ============================================================
+        // SHOP
+        // ============================================================
 
         public void BuyItem(
             ShopItemType itemType)
@@ -401,7 +630,8 @@ namespace StealthEyeGame.Core
 
             const float healAmount = 25f;
 
-            Player.Heal(healAmount);
+            Player.Heal(
+                healAmount);
 
             Progress.MedkitsOwned--;
 
@@ -410,6 +640,10 @@ namespace StealthEyeGame.Core
 
         public void RestartAfterGameOver() =>
             StartNewGame();
+
+        // ============================================================
+        // BEWEGUNG PAUSIEREN
+        // ============================================================
 
         public void ToggleMovementPause()
         {
@@ -422,6 +656,10 @@ namespace StealthEyeGame.Core
             IsMovementPaused =
                 !IsMovementPaused;
         }
+
+        // ============================================================
+        // DASH
+        // ============================================================
 
         public bool TryDash(
             Vector2 mouseFieldPos)
@@ -446,7 +684,8 @@ namespace StealthEyeGame.Core
             }
 
             _dashDirection =
-                Vector2.Normalize(direction);
+                Vector2.Normalize(
+                    direction);
 
             _dashTimer =
                 DashDuration;
@@ -456,6 +695,10 @@ namespace StealthEyeGame.Core
 
             return true;
         }
+
+        // ============================================================
+        // DYNAMIT
+        // ============================================================
 
         public void ToggleDynamitePlacementMode()
         {
@@ -508,7 +751,7 @@ namespace StealthEyeGame.Core
                 return false;
             }
 
-            Progress.DynamiteOwned -= 1;
+            Progress.DynamiteOwned--;
 
             PlacedDynamite.Add(
                 new Dynamite(
@@ -519,6 +762,10 @@ namespace StealthEyeGame.Core
 
             return true;
         }
+
+        // ============================================================
+        // GERÄUSCH
+        // ============================================================
 
         public void EmitNoise(
             NoiseEvent noise)
@@ -548,6 +795,10 @@ namespace StealthEyeGame.Core
                 }
             }
         }
+
+        // ============================================================
+        // UPDATE
+        // ============================================================
 
         public void Update(
             float dt,
@@ -587,6 +838,10 @@ namespace StealthEyeGame.Core
                     break;
             }
         }
+
+        // ============================================================
+        // PLAYING UPDATE
+        // ============================================================
 
         private void UpdatePlaying(
             float dt,
@@ -698,6 +953,10 @@ namespace StealthEyeGame.Core
             }
         }
 
+        // ============================================================
+        // DYNAMIT + EXPLOSION
+        // ============================================================
+
         private void UpdateDynamiteAndExplosions(
             float dt)
         {
@@ -752,8 +1011,6 @@ namespace StealthEyeGame.Core
                     position,
                     radius))
             {
-                // Jede innere Solid-Wand ist zerstörbar.
-                // DestroyWallAt schützt automatisch die Außenborder.
                 if (CurrentLevel.GetWallType(
                         col,
                         row) ==
@@ -799,11 +1056,19 @@ namespace StealthEyeGame.Core
                     GameConstants.ExplosionNoiseRadiusFactor));
         }
 
+        // ============================================================
+        // COINS
+        // ============================================================
+
         private void AwardCoins(int amount)
         {
             Progress.Coins += amount;
             RunCoinsEarned += amount;
         }
+
+        // ============================================================
+        // SPIELERBEWEGUNG
+        // ============================================================
 
         private void MovePlayerTowards(
             Vector2 target,
@@ -826,12 +1091,14 @@ namespace StealthEyeGame.Core
             Vector2 move =
                 distance <= maxStep
                     ? diff
-                    : diff / distance *
+                    : diff /
+                      distance *
                       maxStep;
 
             Vector2 candidateX =
                 new Vector2(
-                    Player.Position.X + move.X,
+                    Player.Position.X +
+                    move.X,
                     Player.Position.Y);
 
             if (!CurrentLevel.CollidesWithWall(
@@ -845,7 +1112,8 @@ namespace StealthEyeGame.Core
             Vector2 candidateY =
                 new Vector2(
                     Player.Position.X,
-                    Player.Position.Y + move.Y);
+                    Player.Position.Y +
+                    move.Y);
 
             if (!CurrentLevel.CollidesWithWall(
                     candidateY,
@@ -855,6 +1123,10 @@ namespace StealthEyeGame.Core
                     candidateY;
             }
         }
+
+        // ============================================================
+        // DASH UPDATE
+        // ============================================================
 
         private void UpdateDash(float dt)
         {
@@ -870,7 +1142,8 @@ namespace StealthEyeGame.Core
 
             Vector2 candidateX =
                 new Vector2(
-                    Player.Position.X + move.X,
+                    Player.Position.X +
+                    move.X,
                     Player.Position.Y);
 
             if (!CurrentLevel.CollidesWithWall(
@@ -884,7 +1157,8 @@ namespace StealthEyeGame.Core
             Vector2 candidateY =
                 new Vector2(
                     Player.Position.X,
-                    Player.Position.Y + move.Y);
+                    Player.Position.Y +
+                    move.Y);
 
             if (!CurrentLevel.CollidesWithWall(
                     candidateY,
