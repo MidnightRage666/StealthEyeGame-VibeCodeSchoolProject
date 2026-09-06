@@ -24,6 +24,7 @@ namespace StealthEyeGame.Systems
 
         public DateTime SaveDate { get; set; }
 
+        public int[][]? WallGrid { get; set; }
         public SaveData()
         {
             CurrentLevel = 1;
