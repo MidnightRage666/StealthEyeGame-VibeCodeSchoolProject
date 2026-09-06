@@ -48,6 +48,8 @@ namespace StealthEyeGame.Rendering
         public Rectangle SaveSlot2ButtonRect { get; private set; }
         public Rectangle SaveSlot3ButtonRect { get; private set; }
         public Rectangle SaveBackButtonRect { get; private set; }
+        public Rectangle NewGameConfirmButtonRect { get; private set; }
+        public Rectangle NewGameCancelButtonRect { get; private set; }
         public List<(ShopItemType ItemType, Rectangle Rect)> ShopBuyButtonRects { get; } = new();
 
         public void Draw(Graphics g, GameManager gm, PointF mouseFieldPos)
@@ -58,6 +60,12 @@ namespace StealthEyeGame.Rendering
             if (gm.State == GameState.MainMenu)
             {
                 DrawMainMenu(g, gm);
+                return;
+            }
+
+            if (gm.State == GameState.NewGameConfirmation)
+            {
+                DrawNewGameConfirmation(g, gm);
                 return;
             }
 
@@ -1783,5 +1791,140 @@ namespace StealthEyeGame.Rendering
                 rect,
                 center);
         }
+        private void DrawNewGameConfirmation(Graphics g, GameManager gm)
+        {
+            g.Clear(BackgroundColor);
+
+            using Font titleFont =
+                new Font(
+                    "Segoe UI",
+                    32,
+                    FontStyle.Bold);
+
+            using Font textFont =
+                new Font(
+                    "Segoe UI",
+                    16,
+                    FontStyle.Regular);
+
+            using Font buttonFont =
+                new Font(
+                    "Segoe UI",
+                    18,
+                    FontStyle.Bold);
+
+            using Brush whiteBrush =
+                new SolidBrush(Color.White);
+
+            using Brush buttonBrush =
+                new SolidBrush(
+                    Color.FromArgb(
+                        255,
+                        60,
+                        130,
+                        220));
+
+            StringFormat center =
+                new StringFormat
+                {
+                    Alignment =
+                        StringAlignment.Center,
+
+                    LineAlignment =
+                        StringAlignment.Center
+                };
+
+            // Überschrift
+            g.DrawString(
+                "NEUES SPIEL",
+                titleFont,
+                whiteBrush,
+                new Rectangle(
+                    0,
+                    80,
+                    GameConstants.CanvasWidth,
+                    60),
+                center);
+
+            // Erklärung
+            g.DrawString(
+                "Möchtest du wirklich ein neues Spiel starten?",
+                textFont,
+                whiteBrush,
+                new Rectangle(
+                    0,
+                    180,
+                    GameConstants.CanvasWidth,
+                    40),
+                center);
+
+            g.DrawString(
+                "Dein aktueller Spielfortschritt bleibt in den Speicherplätzen erhalten.",
+                textFont,
+                whiteBrush,
+                new Rectangle(
+                    0,
+                    225,
+                    GameConstants.CanvasWidth,
+                    40),
+                center);
+
+            // Buttons
+            int buttonWidth = 250;
+            int buttonHeight = 65;
+
+            int spacing = 30;
+
+            int totalWidth =
+                buttonWidth * 2 +
+                spacing;
+
+            int startX =
+                (GameConstants.CanvasWidth -
+                 totalWidth) / 2;
+
+            int buttonY = 330;
+
+            NewGameConfirmButtonRect =
+                new Rectangle(
+                    startX,
+                    buttonY,
+                    buttonWidth,
+                    buttonHeight);
+
+            NewGameCancelButtonRect =
+                new Rectangle(
+                    startX +
+                    buttonWidth +
+                    spacing,
+                    buttonY,
+                    buttonWidth,
+                    buttonHeight);
+
+            // JA
+            g.FillRectangle(
+                buttonBrush,
+                NewGameConfirmButtonRect);
+
+            g.DrawString(
+                "JA",
+                buttonFont,
+                whiteBrush,
+                NewGameConfirmButtonRect,
+                center);
+
+            // NEIN
+            g.FillRectangle(
+                buttonBrush,
+                NewGameCancelButtonRect);
+
+            g.DrawString(
+                "NEIN",
+                buttonFont,
+                whiteBrush,
+                NewGameCancelButtonRect,
+                center);
+        }
+
     }
 }

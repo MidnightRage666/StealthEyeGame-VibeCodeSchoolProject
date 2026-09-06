@@ -99,6 +99,11 @@ namespace StealthEyeGame
                     {
                         _gameManager.StartNewGame();
                     }
+                    else if (_renderer.MainMenuNewGameButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.OpenNewGameConfirmation();
+                    }
+
                     else if (_renderer.MainMenuLoadButtonRect.Contains(e.Location))
                     {
                         _gameManager.OpenLoadMenu();
@@ -106,6 +111,17 @@ namespace StealthEyeGame
                     else if (_renderer.MainMenuExitButtonRect.Contains(e.Location))
                     {
                         Application.Exit();
+                    }
+                    break;
+
+                case GameState.NewGameConfirmation:
+                    if (_renderer.NewGameConfirmButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.ConfirmNewGame();
+                    }
+                    else if (_renderer.NewGameCancelButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.CancelNewGame();
                     }
                     break;
 

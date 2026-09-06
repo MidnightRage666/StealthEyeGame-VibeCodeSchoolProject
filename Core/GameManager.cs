@@ -222,6 +222,21 @@ namespace StealthEyeGame.Core
             State = GameState.LoadMenu;
         }
 
+        public void OpenNewGameConfirmation()
+        {
+            State = GameState.NewGameConfirmation;
+        }
+
+        public void CancelNewGame()
+        {
+            State = GameState.MainMenu;
+        }
+
+        public void ConfirmNewGame()
+        {
+            StartNewGame();
+        }
+
         public void OpenSaveMenu()
         {
             if (State != GameState.Paused)
