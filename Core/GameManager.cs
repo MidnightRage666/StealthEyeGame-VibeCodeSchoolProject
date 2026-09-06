@@ -85,6 +85,14 @@ namespace StealthEyeGame.Core
                 SpawnProtectionDuration;
         }
 
+        public void ContinueGame()
+        {   
+            if(!LoadGame(1))
+            {
+                StartNewGame();
+            }
+        }
+
         public bool SaveGame(int slot)
         {
             if (State != GameState.Paused &&

@@ -97,7 +97,7 @@ namespace StealthEyeGame
                 case GameState.MainMenu:
                     if (_renderer.MainMenuStartButtonRect.Contains(e.Location))
                     {
-                        _gameManager.StartNewGame();
+                        _gameManager.ContinueGame();
                     }
                     else if (_renderer.MainMenuNewGameButtonRect.Contains(e.Location))
                     {
