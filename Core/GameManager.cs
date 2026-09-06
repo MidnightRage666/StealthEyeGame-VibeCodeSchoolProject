@@ -8,10 +8,14 @@ namespace StealthEyeGame.Core
 {
     public enum GameState
     {
+        MainMenu,
         Playing,
         LevelTransition,
         GameOver,
-        Shop
+        Shop,
+        Paused,
+        LoadMenu,
+        NewGameConfirmation
     }
 
     public class GameManager
@@ -52,7 +56,7 @@ namespace StealthEyeGame.Core
 
         public GameManager()
         {
-            StartNewGame();
+            State = GameState.MainMenu;
         }
 
         public void StartNewGame()
@@ -80,6 +84,114 @@ namespace StealthEyeGame.Core
                 SpawnProtectionDuration;
         }
 
+        public bool SaveGame()
+        {
+            if (State != GameState.Playing &&
+                State != GameState.Paused)
+            {
+                return false;
+            }
+
+            if (Player == null ||
+                CurrentLevel == null)
+            {
+                return false;
+            }
+
+            SaveData data = new SaveData
+            {
+                CurrentLevel = LevelNumber,
+
+                PlayerX = Player.Position.X,
+                PlayerY = Player.Position.Y,
+                PlayerHealth = Player.HP,
+
+                Coins = Progress.Coins,
+                DynamiteOwned = Progress.DynamiteOwned,
+                MedkitsOwned = Progress.MedkitsOwned,
+
+                BonusMaxHP = Progress.BonusMaxHP,
+                HasStrongerDynamite = Progress.HasStrongerDynamite
+            };
+
+            return SaveSystem.Save(1, data);
+        }
+
+        public void TogglePause()
+        {
+            if (State == GameState.Playing)
+            {
+                IsMovementPaused = true;
+                State = GameState.Paused;
+            }
+            else if (State == GameState.Paused)
+            {
+                IsMovementPaused = false;
+                State = GameState.Playing;
+            }
+        }
+
+        public void GoToMainMenu()
+        {
+            State = GameState.MainMenu;
+            IsMovementPaused = true;
+            IsPlacingDynamite = false;
+        }
+
+        public bool LoadGame()
+        {
+            SaveData? data = SaveSystem.Load(1);
+
+            if (data == null)
+            {
+                return false;
+            }
+
+            LevelNumber = data.CurrentLevel;
+
+            Progress.Coins = data.Coins;
+            Progress.DynamiteOwned = data.DynamiteOwned;
+            Progress.MedkitsOwned = data.MedkitsOwned;
+            Progress.BonusMaxHP = data.BonusMaxHP;
+            Progress.HasStrongerDynamite =
+                data.HasStrongerDynamite;
+
+            CurrentLevel =
+                LevelGenerator.Generate(
+                    LevelNumber,
+                    _rng);
+
+            float maxHp =
+                GameConstants.PlayerBaseMaxHP +
+                Progress.BonusMaxHP;
+
+            Player =
+                new Player(
+                    new Vector2(
+                        data.PlayerX,
+                        data.PlayerY),
+                    maxHp);
+
+            Player.RestoreHealth(
+                data.PlayerHealth);
+
+            RunCoinsEarned = 0;
+
+            IsPlacingDynamite = false;
+            PlayerIsSpotted = false;
+            IsMovementPaused = false;
+
+            PlacedDynamite.Clear();
+            ActiveExplosions.Clear();
+
+            _spawnProtectionTimer =
+                SpawnProtectionDuration;
+
+            State = GameState.Playing;
+
+            return true;
+        }
+
         private void LoadLevel(int number)
         {
             LevelNumber = number;
@@ -97,6 +209,63 @@ namespace StealthEyeGame.Core
 
         public void OpenShop() =>
             State = GameState.Shop;
+
+        public void OpenLoadMenu()
+        {
+            State = GameState.LoadMenu;
+        }
+
+        public bool LoadGame(int slot)
+        {
+            SaveData? data = SaveSystem.Load(slot);
+
+            if (data == null)
+                return false;
+
+            LevelNumber = data.CurrentLevel;
+
+            Progress.Coins = data.Coins;
+            Progress.DynamiteOwned = data.DynamiteOwned;
+            Progress.MedkitsOwned = data.MedkitsOwned;
+            Progress.BonusMaxHP = data.BonusMaxHP;
+            Progress.HasStrongerDynamite = data.HasStrongerDynamite;
+
+            CurrentLevel =
+                LevelGenerator.Generate(
+                    LevelNumber,
+                    _rng);
+
+            float maxHp =
+                GameConstants.PlayerBaseMaxHP +
+                Progress.BonusMaxHP;
+
+            Player =
+                new Player(
+                    new Vector2(
+                        data.PlayerX,
+                        data.PlayerY),
+                    maxHp);
+
+            Player.RestoreHealth(
+                data.PlayerHealth);
+
+            RunCoinsEarned = 0;
+
+            IsPlacingDynamite = false;
+            PlayerIsSpotted = false;
+            IsMovementPaused = false;
+
+            PlacedDynamite.Clear();
+            ActiveExplosions.Clear();
+
+            _spawnProtectionTimer =
+                SpawnProtectionDuration;
+
+            State =
+                GameState.Playing;
+
+            return true;
+        }
 
         public void BuyItem(ShopItemType itemType)
         {
@@ -299,6 +468,7 @@ namespace StealthEyeGame.Core
 
                 case GameState.GameOver:
                 case GameState.Shop:
+                case GameState.Paused:
                     break;
             }
         }

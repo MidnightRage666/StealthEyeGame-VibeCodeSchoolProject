@@ -49,6 +49,17 @@ namespace StealthEyeGame
         // NEU: E-Taste toggelt ausschließlich den Dynamit-Platzierungsmodus
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
+            if (e.KeyCode == Keys.Escape)
+            {
+                if (_gameManager.State == GameState.Playing ||
+                    _gameManager.State == GameState.Paused)
+                {
+                    _gameManager.TogglePause();
+                }
+
+                return;
+            }
+
             if (e.KeyCode == Keys.E &&
                 _gameManager.State == GameState.Playing)
             {
@@ -83,6 +94,40 @@ namespace StealthEyeGame
         {
             switch (_gameManager.State)
             {
+                case GameState.MainMenu:
+                    if (_renderer.MainMenuStartButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.StartNewGame();
+                    }
+                    else if (_renderer.MainMenuLoadButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.OpenLoadMenu();
+                    }
+                    else if (_renderer.MainMenuExitButtonRect.Contains(e.Location))
+                    {
+                        Application.Exit();
+                    }
+                    break;
+
+                case GameState.LoadMenu:
+                    if (_renderer.LoadSlot1ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.LoadGame(1);
+                    }
+                    else if (_renderer.LoadSlot2ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.LoadGame(2);
+                    }
+                    else if (_renderer.LoadSlot3ButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.LoadGame(3);
+                    }
+                    else if (_renderer.LoadBackButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.GoToMainMenu();
+                    }
+                    break;
+
                 case GameState.GameOver:
                     if (_renderer.GameOverShopButtonRect.Contains(e.Location))
                     {
@@ -118,6 +163,26 @@ namespace StealthEyeGame
                     {
                         _gameManager.TryPlaceDynamiteAt(_mouseFieldPos);
                     }
+                    break;
+                case GameState.Paused:
+
+                    if (_renderer.PauseResumeButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.TogglePause();
+                    }
+                    else if (_renderer.PauseSaveButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.SaveGame();
+                    }
+                    else if (_renderer.PauseMainMenuButtonRect.Contains(e.Location))
+                    {
+                        _gameManager.GoToMainMenu();
+                    }
+                    else if (_renderer.PauseExitButtonRect.Contains(e.Location))
+                    {
+                        Application.Exit();
+                    }
+
                     break;
             }
         }

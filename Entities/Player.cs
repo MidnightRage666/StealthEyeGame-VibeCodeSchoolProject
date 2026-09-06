@@ -65,5 +65,10 @@ namespace StealthEyeGame.Entities
             SlowMultiplier = 1f;
             IsSpottedThisFrame = false;
         }
+
+        public void RestoreHealth(float health)
+        {
+            HP = Math.Max(0f, Math.Min(health, MaxHP));
+        }
     }
 }

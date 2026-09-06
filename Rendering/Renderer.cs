@@ -32,12 +32,36 @@ namespace StealthEyeGame.Rendering
         public Rectangle GameOverRestartButtonRect { get; private set; }
         public Rectangle DynamiteButtonRect { get; private set; }
         public Rectangle ShopContinueButtonRect { get; private set; }
+        public Rectangle MainMenuStartButtonRect { get; private set; }
+        public Rectangle MainMenuNewGameButtonRect { get; private set; }
+        public Rectangle MainMenuLoadButtonRect { get; private set; }
+        public Rectangle MainMenuExitButtonRect { get; private set; }
+        public Rectangle LoadSlot1ButtonRect { get; private set; }
+        public Rectangle LoadSlot2ButtonRect { get; private set; }
+        public Rectangle LoadSlot3ButtonRect { get; private set; }
+        public Rectangle LoadBackButtonRect { get; private set; }
+        public Rectangle PauseResumeButtonRect { get; private set; }
+        public Rectangle PauseSaveButtonRect { get; private set; }
+        public Rectangle PauseMainMenuButtonRect { get; private set; }
+        public Rectangle PauseExitButtonRect { get; private set; }
         public List<(ShopItemType ItemType, Rectangle Rect)> ShopBuyButtonRects { get; } = new();
 
         public void Draw(Graphics g, GameManager gm, PointF mouseFieldPos)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(BackgroundColor);
+
+            if (gm.State == GameState.MainMenu)
+            {
+                DrawMainMenu(g, gm);
+                return;
+            }
+
+            if (gm.State == GameState.LoadMenu)
+            {
+                DrawLoadMenu(g, gm);
+                return;
+            }
 
             if (gm.State == GameState.Shop)
             {
@@ -68,6 +92,8 @@ namespace StealthEyeGame.Rendering
                 DrawGameOverOverlay(g, gm);
             else if (gm.State == GameState.LevelTransition)
                 DrawTransitionOverlay(g, gm);
+            else if (gm.State == GameState.Paused)
+                DrawPauseOverlay(g, gm);
         }
 
         private void DrawWalls(Graphics g, Level level)
@@ -1095,6 +1121,513 @@ namespace StealthEyeGame.Rendering
                 rect.Y +
                     rect.Height / 2f -
                     size.Height / 2f);
+        }
+
+        private void DrawMainMenu(Graphics g, GameManager gm)
+        {
+            MainMenuStartButtonRect =
+                new Rectangle(330, 210, 300, 60);
+
+            MainMenuNewGameButtonRect =
+                new Rectangle(330, 290, 300, 60);
+
+            MainMenuLoadButtonRect =
+                new Rectangle(330, 370, 300, 60);
+
+            MainMenuExitButtonRect =
+                new Rectangle(330, 450, 300, 60);
+
+            using var titleFont =
+                new Font("Arial", 42, FontStyle.Bold);
+
+            using var buttonFont =
+                new Font("Arial", 18, FontStyle.Bold);
+
+            using var titleBrush =
+                new SolidBrush(Color.White);
+
+            using var buttonBrush =
+                new SolidBrush(ButtonColor);
+
+            using var borderPen =
+                new Pen(Color.White, 2);
+
+            StringFormat center =
+                new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+
+            // Titel
+            g.DrawString(
+                "EYE ESCAPE",
+                titleFont,
+                titleBrush,
+                new Rectangle(
+                    0,
+                    70,
+                    GameConstants.WindowWidth,
+                    70),
+                center);
+
+            using var subtitleFont =
+                new Font("Arial", 16, FontStyle.Regular);
+
+            g.DrawString(
+                "AUGEN IM DUNKELN",
+                subtitleFont,
+                titleBrush,
+                new Rectangle(
+                    0,
+                    135,
+                    GameConstants.WindowWidth,
+                    40),
+                center);
+
+            // Buttons
+            DrawMenuButton(
+                g,
+                MainMenuStartButtonRect,
+                "SPIEL STARTEN",
+                buttonFont,
+                buttonBrush,
+                borderPen,
+                center);
+
+            DrawMenuButton(
+                g,
+                MainMenuNewGameButtonRect,
+                "NEUES SPIEL",
+                buttonFont,
+                buttonBrush,
+                borderPen,
+                center);
+
+            DrawMenuButton(
+                g,
+                MainMenuLoadButtonRect,
+                "LADEN",
+                buttonFont,
+                buttonBrush,
+                borderPen,
+                center);
+
+            DrawMenuButton(
+                g,
+                MainMenuExitButtonRect,
+                "BEENDEN",
+                buttonFont,
+                buttonBrush,
+                borderPen,
+                center);
+        }
+
+        private void DrawMenuButton(
+        Graphics g,
+        Rectangle rect,
+        string text,
+        Font font,
+        Brush brush,
+        Pen borderPen,
+        StringFormat format)
+        {
+            g.FillRectangle(
+                brush,
+                rect);
+
+            g.DrawRectangle(
+                borderPen,
+                rect);
+
+            using var textBrush =
+                new SolidBrush(Color.White);
+
+            g.DrawString(
+                text,
+                font,
+                textBrush,
+                rect,
+                format);
+        }
+
+        private void DrawPauseOverlay(
+    Graphics g,
+    GameManager gm)
+        {
+            using var overlay =
+                new SolidBrush(
+                    Color.FromArgb(210, 0, 0, 0));
+
+            g.FillRectangle(
+                overlay,
+                0,
+                0,
+                GameConstants.CanvasWidth,
+                GameConstants.WindowHeight);
+
+            float panelWidth = 420f;
+            float panelHeight = 430f;
+
+            float panelX =
+                GameConstants.CanvasWidth / 2f -
+                panelWidth / 2f;
+
+            float panelY =
+                GameConstants.WindowHeight / 2f -
+                panelHeight / 2f;
+
+            var panelRect =
+                new RectangleF(
+                    panelX,
+                    panelY,
+                    panelWidth,
+                    panelHeight);
+
+            using var panelBrush =
+                new SolidBrush(PanelColor);
+
+            g.FillRectangle(
+                panelBrush,
+                panelRect);
+
+            using var panelPen =
+                new Pen(
+                    Color.FromArgb(255, 100, 100, 110),
+                    2f);
+
+            g.DrawRectangle(
+                panelPen,
+                panelRect.X,
+                panelRect.Y,
+                panelRect.Width,
+                panelRect.Height);
+
+            using var titleFont =
+                new Font(
+                    "Segoe UI",
+                    30f,
+                    FontStyle.Bold);
+
+            using var titleBrush =
+                new SolidBrush(Color.White);
+
+            string title = "PAUSE";
+
+            var titleSize =
+                g.MeasureString(
+                    title,
+                    titleFont);
+
+            g.DrawString(
+                title,
+                titleFont,
+                titleBrush,
+                panelX +
+                    panelWidth / 2f -
+                    titleSize.Width / 2f,
+                panelY + 28);
+
+            const float buttonWidth = 260f;
+            const float buttonHeight = 48f;
+
+            float buttonX =
+                panelX +
+                panelWidth / 2f -
+                buttonWidth / 2f;
+
+            PauseResumeButtonRect =
+                new Rectangle(
+                    (int)buttonX,
+                    (int)(panelY + 100),
+                    (int)buttonWidth,
+                    (int)buttonHeight);
+
+            PauseSaveButtonRect =
+                new Rectangle(
+                    (int)buttonX,
+                    (int)(panelY + 160),
+                    (int)buttonWidth,
+                    (int)buttonHeight);
+
+            PauseMainMenuButtonRect =
+                new Rectangle(
+                    (int)buttonX,
+                    (int)(panelY + 220),
+                    (int)buttonWidth,
+                    (int)buttonHeight);
+
+            PauseExitButtonRect =
+                new Rectangle(
+                    (int)buttonX,
+                    (int)(panelY + 280),
+                    (int)buttonWidth,
+                    (int)buttonHeight);
+
+            DrawButton(
+                g,
+                PauseResumeButtonRect,
+                "WEITERSPIELEN",
+                true);
+
+            DrawButton(
+                g,
+                PauseSaveButtonRect,
+                "SPEICHERN",
+                true);
+
+            DrawButton(
+                g,
+                PauseMainMenuButtonRect,
+                "HAUPTMENÜ",
+                true);
+
+            DrawButton(
+                g,
+                PauseExitButtonRect,
+                "BEENDEN",
+                true);
+
+            using var hintFont =
+                new Font(
+                    "Segoe UI",
+                    9.5f);
+
+            using var hintBrush =
+                new SolidBrush(
+                    Color.FromArgb(
+                        255,
+                        170,
+                        170,
+                        180));
+
+            string hint = "ESC = Weiterspielen";
+
+            var hintSize =
+                g.MeasureString(
+                    hint,
+                    hintFont);
+
+            g.DrawString(
+                hint,
+                hintFont,
+                hintBrush,
+                panelX +
+                    panelWidth / 2f -
+                    hintSize.Width / 2f,
+                panelY + 350);
+        }
+
+        private void DrawLoadMenu(Graphics g, GameManager gm)
+        {
+            g.Clear(BackgroundColor);
+
+            using Font titleFont =
+                new Font("Segoe UI", 32, FontStyle.Bold);
+
+            using Font slotFont =
+                new Font("Segoe UI", 18, FontStyle.Bold);
+
+            using Font infoFont =
+                new Font("Segoe UI", 12, FontStyle.Regular);
+
+            using Brush whiteBrush =
+                new SolidBrush(Color.White);
+
+            using Brush buttonBrush =
+                new SolidBrush(
+                    Color.FromArgb(255, 60, 130, 220));
+
+            using Brush emptyBrush =
+                new SolidBrush(
+                    Color.FromArgb(255, 70, 70, 80));
+
+            StringFormat center =
+                new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+
+            g.DrawString(
+                "LADEN",
+                titleFont,
+                whiteBrush,
+                new Rectangle(
+                    0,
+                    40,
+                    GameConstants.CanvasWidth,
+                    60),
+                center);
+
+            int buttonWidth = 700;
+            int buttonHeight = 120;
+
+            int x =
+                (GameConstants.CanvasWidth -
+                 buttonWidth) / 2;
+
+            int startY = 130;
+            int spacing = 140;
+
+            DrawLoadSlot(
+                g,
+                1,
+                new Rectangle(
+                    x,
+                    startY,
+                    buttonWidth,
+                    buttonHeight),
+                buttonBrush,
+                emptyBrush,
+                slotFont,
+                infoFont,
+                whiteBrush,
+                center);
+
+            LoadSlot1ButtonRect =
+                new Rectangle(
+                    x,
+                    startY,
+                    buttonWidth,
+                    buttonHeight);
+
+            DrawLoadSlot(
+                g,
+                2,
+                new Rectangle(
+                    x,
+                    startY + spacing,
+                    buttonWidth,
+                    buttonHeight),
+                buttonBrush,
+                emptyBrush,
+                slotFont,
+                infoFont,
+                whiteBrush,
+                center);
+
+            LoadSlot2ButtonRect =
+                new Rectangle(
+                    x,
+                    startY + spacing,
+                    buttonWidth,
+                    buttonHeight);
+
+            DrawLoadSlot(
+                g,
+                3,
+                new Rectangle(
+                    x,
+                    startY + spacing * 2,
+                    buttonWidth,
+                    buttonHeight),
+                buttonBrush,
+                emptyBrush,
+                slotFont,
+                infoFont,
+                whiteBrush,
+                center);
+
+            LoadSlot3ButtonRect =
+                new Rectangle(
+                    x,
+                    startY + spacing * 2,
+                    buttonWidth,
+                    buttonHeight);
+
+            int backY = startY + spacing * 3;
+
+            LoadBackButtonRect =
+                new Rectangle(
+                    x + 200,
+                    backY,
+                    buttonWidth - 400,
+                    55);
+
+            g.FillRectangle(
+                buttonBrush,
+                LoadBackButtonRect);
+
+            g.DrawString(
+                "ZURÜCK",
+                slotFont,
+                whiteBrush,
+                LoadBackButtonRect,
+                center);
+        }
+
+        private void DrawLoadSlot(
+    Graphics g,
+    int slot,
+    Rectangle rect,
+    Brush buttonBrush,
+    Brush emptyBrush,
+    Font slotFont,
+    Font infoFont,
+    Brush whiteBrush,
+    StringFormat center)
+        {
+            SaveData? data =
+                SaveSystem.Load(slot);
+
+            Brush background =
+                data == null
+                    ? emptyBrush
+                    : buttonBrush;
+
+            g.FillRectangle(
+                background,
+                rect);
+
+            if (data == null)
+            {
+                g.DrawString(
+                    $"SPEICHERPLATZ {slot} - LEER",
+                    slotFont,
+                    whiteBrush,
+                    rect,
+                    center);
+
+                return;
+            }
+
+            using StringFormat left =
+                new StringFormat
+                {
+                    Alignment = StringAlignment.Near,
+                    LineAlignment = StringAlignment.Near
+                };
+
+            Rectangle textRect =
+                new Rectangle(
+                    rect.X + 20,
+                    rect.Y + 12,
+                    rect.Width - 40,
+                    rect.Height - 24);
+
+            string strongerDynamite =
+                data.HasStrongerDynamite
+                    ? "JA"
+                    : "NEIN";
+
+            string text =
+                $"SPEICHERPLATZ {slot}\n" +
+                $"Level: {data.CurrentLevel}    " +
+                $"HP: {data.PlayerHealth:0}/{100 + data.BonusMaxHP:0}    " +
+                $"Münzen: {data.Coins}\n" +
+                $"Dynamit: {data.DynamiteOwned}    " +
+                $"Medkits: {data.MedkitsOwned}    " +
+                $"Bonus-Max-HP: +{data.BonusMaxHP:0}    " +
+                $"Starkes Dynamit: {strongerDynamite}\n" +
+                $"Gespeichert: {data.SaveDate:dd.MM.yyyy HH:mm}";
+
+            g.DrawString(
+                text,
+                infoFont,
+                whiteBrush,
+                textRect,
+                left);
         }
     }
 }
