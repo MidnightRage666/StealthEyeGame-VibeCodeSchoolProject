@@ -7,10 +7,10 @@ using StealthEyeGame.Rendering;
 namespace StealthEyeGame
 {
     /// <summary>
-    /// Host-Fenster des Spiels. Verantwortlich für: Game-Loop-Timer, Erfassen der
-    /// Mausposition, Weiterreichen an den GameManager, Neuzeichnen sowie sämtliche
-    /// Maus-Klick-Interaktionen (Dynamit platzieren, Game-Over-Buttons, Shop).
-    /// Enthält selbst keine Spiellogik.
+    /// Host-Fenster des Spiels.
+    /// Das Spiel verwendet intern immer 1920x1080.
+    /// Das Fenster läuft randlos im Vollbild und wird automatisch
+    /// an die Auflösung des Monitors angepasst.
     /// </summary>
     public class MainForm : Form
     {
@@ -18,35 +18,84 @@ namespace StealthEyeGame
         private readonly Renderer _renderer = new();
         private readonly System.Windows.Forms.Timer _loopTimer;
 
+        // Mausposition in der INTERNEN 1920x1080-Spielwelt.
         private Vector2 _mouseFieldPos = Vector2.Zero;
+
         private DateTime _lastTick = DateTime.UtcNow;
 
         public MainForm()
         {
             Text = "Augen im Dunkeln - Stealth";
-            ClientSize = new System.Drawing.Size(GameConstants.WindowWidth, GameConstants.WindowHeight);
-            FormBorderStyle = FormBorderStyle.FixedSingle;
-            MaximizeBox = false;
+
+            // ==========================================
+            // INTERNES SPIELFORMAT
+            // ==========================================
+            // Das Spiel zeichnet intern immer in 1920x1080.
+            // Die tatsächliche Monitorauflösung wird nur
+            // für die Darstellung verwendet.
+
+            ClientSize = new System.Drawing.Size(
+                GameConstants.WindowWidth,
+                GameConstants.WindowHeight);
+
+            // ==========================================
+            // VOLLBILD
+            // ==========================================
+
+            FormBorderStyle = FormBorderStyle.None;
+            WindowState = FormWindowState.Maximized;
+
+            // Wichtig für saubere Pixel-/Koordinatenberechnung.
+            AutoScaleMode = AutoScaleMode.None;
+
             StartPosition = FormStartPosition.CenterScreen;
+
             DoubleBuffered = true;
             BackColor = System.Drawing.Color.Black;
 
-            // Der Mauszeiger bleibt bewusst sichtbar (Cursor.Hide() wird NICHT aufgerufen) -
-            // der Spielerpunkt wird zusätzlich neben dem OS-Cursor gerendert.
+            // ==========================================
+            // EINGABE
+            // ==========================================
+
             MouseMove += OnMouseMove;
             MouseClick += OnMouseClick;
             Paint += OnPaint;
 
-            // NEU: Tastatureingaben des Fensters empfangen
             KeyPreview = true;
             KeyDown += OnKeyDown;
 
-            _loopTimer = new System.Windows.Forms.Timer { Interval = GameConstants.TimerIntervalMs };
+            // ==========================================
+            // GAME LOOP
+            // ==========================================
+
+            _loopTimer =
+                new System.Windows.Forms.Timer
+                {
+                    Interval = GameConstants.TimerIntervalMs
+                };
+
             _loopTimer.Tick += OnTick;
             _loopTimer.Start();
         }
 
-        // NEU: E-Taste toggelt ausschließlich den Dynamit-Platzierungsmodus
+        // =========================================================
+        // MOUSE
+        // =========================================================
+
+        private void OnMouseMove(object? sender, MouseEventArgs e)
+        {
+            _mouseFieldPos =
+                _renderer.ScreenToField(
+                    e.X,
+                    e.Y,
+                    ClientSize.Width,
+                    ClientSize.Height);
+        }
+
+        // =========================================================
+        // TASTATUREINGABEN
+        // =========================================================
+
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)
@@ -85,116 +134,142 @@ namespace StealthEyeGame
             }
         }
 
-        private void OnMouseMove(object? sender, MouseEventArgs e)
-        {
-            _mouseFieldPos = new Vector2(e.X, e.Y - GameConstants.TopBarHeight);
-        }
+        // =========================================================
+        // MAUSKLICKS
+        // =========================================================
 
         private void OnMouseClick(object? sender, MouseEventArgs e)
         {
+            // Bildschirmkoordinaten -> interne Spielkoordinaten
+            Vector2 gameMouse =
+                _renderer.ScreenToVirtual(
+                    e.X,
+                    e.Y,
+                    ClientSize.Width,
+                    ClientSize.Height);
+
+            System.Drawing.Point gamePoint =
+                new System.Drawing.Point(
+                    (int)gameMouse.X,
+                    (int)gameMouse.Y);
+
             switch (_gameManager.State)
             {
                 case GameState.MainMenu:
-                    if (_renderer.MainMenuStartButtonRect.Contains(e.Location))
+
+                    if (_renderer.MainMenuStartButtonRect.Contains(gamePoint))
                     {
                         _gameManager.ContinueGame();
                     }
-                    else if (_renderer.MainMenuNewGameButtonRect.Contains(e.Location))
+                    else if (_renderer.MainMenuNewGameButtonRect.Contains(gamePoint))
                     {
                         _gameManager.OpenNewGameConfirmation();
                     }
-
-                    else if (_renderer.MainMenuLoadButtonRect.Contains(e.Location))
+                    else if (_renderer.MainMenuLoadButtonRect.Contains(gamePoint))
                     {
                         _gameManager.OpenLoadMenu();
                     }
-                    else if (_renderer.MainMenuExitButtonRect.Contains(e.Location))
+                    else if (_renderer.MainMenuExitButtonRect.Contains(gamePoint))
                     {
                         Application.Exit();
                     }
+
                     break;
 
                 case GameState.NewGameConfirmation:
-                    if (_renderer.NewGameConfirmButtonRect.Contains(e.Location))
+
+                    if (_renderer.NewGameConfirmButtonRect.Contains(gamePoint))
                     {
                         _gameManager.ConfirmNewGame();
                     }
-                    else if (_renderer.NewGameCancelButtonRect.Contains(e.Location))
+                    else if (_renderer.NewGameCancelButtonRect.Contains(gamePoint))
                     {
                         _gameManager.CancelNewGame();
                     }
+
                     break;
 
                 case GameState.LoadMenu:
-                    if (_renderer.LoadSlot1ButtonRect.Contains(e.Location))
+
+                    if (_renderer.LoadSlot1ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.LoadGame(1);
                     }
-                    else if (_renderer.LoadSlot2ButtonRect.Contains(e.Location))
+                    else if (_renderer.LoadSlot2ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.LoadGame(2);
                     }
-                    else if (_renderer.LoadSlot3ButtonRect.Contains(e.Location))
+                    else if (_renderer.LoadSlot3ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.LoadGame(3);
                     }
-                    else if (_renderer.LoadBackButtonRect.Contains(e.Location))
+                    else if (_renderer.LoadBackButtonRect.Contains(gamePoint))
                     {
                         _gameManager.GoToMainMenu();
                     }
+
                     break;
 
                 case GameState.GameOver:
-                    if (_renderer.GameOverShopButtonRect.Contains(e.Location))
+
+                    if (_renderer.GameOverShopButtonRect.Contains(gamePoint))
                     {
                         _gameManager.OpenShop();
                     }
-                    else if (_renderer.GameOverRestartButtonRect.Contains(e.Location))
+                    else if (_renderer.GameOverRestartButtonRect.Contains(gamePoint))
                     {
                         _gameManager.RestartAfterGameOver();
                     }
+
                     break;
 
                 case GameState.Shop:
+
                     foreach (var (itemType, rect) in _renderer.ShopBuyButtonRects)
                     {
-                        if (rect.Contains(e.Location))
+                        if (rect.Contains(gamePoint))
                         {
                             _gameManager.BuyItem(itemType);
                             return;
                         }
                     }
-                    if (_renderer.ShopContinueButtonRect.Contains(e.Location))
+
+                    if (_renderer.ShopContinueButtonRect.Contains(gamePoint))
                     {
                         _gameManager.RestartAfterGameOver();
                     }
+
                     break;
 
                 case GameState.Playing:
-                    if (_renderer.DynamiteButtonRect.Contains(e.Location))
+
+                    if (_renderer.DynamiteButtonRect.Contains(gamePoint))
                     {
                         _gameManager.ToggleDynamitePlacementMode();
                     }
-                    else if (_gameManager.IsPlacingDynamite && e.Y > GameConstants.TopBarHeight)
+                    else if (_gameManager.IsPlacingDynamite &&
+                             gamePoint.Y > GameConstants.TopBarHeight)
                     {
                         _gameManager.TryPlaceDynamiteAt(_mouseFieldPos);
                     }
+
                     break;
+
                 case GameState.Paused:
 
-                    if (_renderer.PauseResumeButtonRect.Contains(e.Location))
+                    if (_renderer.PauseResumeButtonRect.Contains(gamePoint))
                     {
                         _gameManager.TogglePause();
                     }
-                    else if (_renderer.PauseSaveButtonRect.Contains(e.Location))
+                    else if (_renderer.PauseSaveButtonRect.Contains(gamePoint))
                     {
                         _gameManager.OpenSaveMenu();
                     }
-                    else if (_renderer.PauseMainMenuButtonRect.Contains(e.Location))
+                    else if (_renderer.PauseMainMenuButtonRect.Contains(gamePoint))
                     {
                         _gameManager.GoToMainMenu();
                     }
-                    else if (_renderer.PauseExitButtonRect.Contains(e.Location))
+                    else if (_renderer.PauseExitButtonRect.Contains(gamePoint))
                     {
                         Application.Exit();
                     }
@@ -202,44 +277,67 @@ namespace StealthEyeGame
                     break;
 
                 case GameState.SaveMenu:
-                    if (_renderer.SaveSlot1ButtonRect.Contains(e.Location))
+
+                    if (_renderer.SaveSlot1ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.SaveGame(1);
                         _gameManager.CloseSaveMenu();
                     }
-                    else if (_renderer.SaveSlot2ButtonRect.Contains(e.Location))
+                    else if (_renderer.SaveSlot2ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.SaveGame(2);
                         _gameManager.CloseSaveMenu();
                     }
-                    else if (_renderer.SaveSlot3ButtonRect.Contains(e.Location))
+                    else if (_renderer.SaveSlot3ButtonRect.Contains(gamePoint))
                     {
                         _gameManager.SaveGame(3);
                         _gameManager.CloseSaveMenu();
                     }
-                    else if (_renderer.SaveBackButtonRect.Contains(e.Location))
+                    else if (_renderer.SaveBackButtonRect.Contains(gamePoint))
                     {
                         _gameManager.CloseSaveMenu();
                     }
+
                     break;
             }
         }
 
+        // =========================================================
+        // GAME LOOP
+        // =========================================================
+
         private void OnTick(object? sender, EventArgs e)
         {
             var now = DateTime.UtcNow;
-            float dt = (float)(now - _lastTick).TotalSeconds;
+
+            float dt =
+                (float)(now - _lastTick).TotalSeconds;
+
             _lastTick = now;
 
             dt = Math.Min(dt, 0.05f);
 
-            _gameManager.Update(dt, _mouseFieldPos);
+            _gameManager.Update(
+                dt,
+                _mouseFieldPos);
+
             Invalidate();
         }
 
+        // =========================================================
+        // RENDERING
+        // =========================================================
+
         private void OnPaint(object? sender, PaintEventArgs e)
         {
-            _renderer.Draw(e.Graphics, _gameManager, new System.Drawing.PointF(_mouseFieldPos.X, _mouseFieldPos.Y));
+            _renderer.Draw(
+                e.Graphics,
+                _gameManager,
+                new System.Drawing.PointF(
+                    _mouseFieldPos.X,
+                    _mouseFieldPos.Y),
+                ClientSize.Width,
+                ClientSize.Height);
         }
     }
 }
