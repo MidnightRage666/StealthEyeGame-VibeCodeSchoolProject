@@ -92,6 +92,34 @@ namespace StealthEyeGame
                     ClientSize.Height);
         }
 
+        private void MoveMouseToPlayer()
+        {
+            Vector2 playerPos = _gameManager.Player.Position;
+
+            Vector2 virtualPos = new Vector2(
+                playerPos.X,
+                playerPos.Y + GameConstants.TopBarHeight);
+
+            float scale =
+                MathF.Min(
+                    ClientSize.Width / (float)GameConstants.CanvasWidth,
+                    ClientSize.Height / (float)GameConstants.WindowHeight);
+
+            float scaledWidth = GameConstants.CanvasWidth * scale;
+            float scaledHeight = GameConstants.WindowHeight * scale;
+
+            float offsetX = (ClientSize.Width - scaledWidth) / 2f;
+            float offsetY = (ClientSize.Height - scaledHeight) / 2f;
+
+            float screenX = offsetX + virtualPos.X * scale;
+            float screenY = offsetY + virtualPos.Y * scale;
+
+            Cursor.Position = PointToScreen(
+                new System.Drawing.Point(
+                    (int)screenX,
+                    (int)screenY));
+        }
+
         // =========================================================
         // TASTATUREINGABEN
         // =========================================================
@@ -320,6 +348,12 @@ namespace StealthEyeGame
             _gameManager.Update(
                 dt,
                 _mouseFieldPos);
+
+            if (_gameManager.MouseNeedsReset)
+            {
+                MoveMouseToPlayer();
+                _gameManager.ClearMouseReset();
+            }
 
             Invalidate();
         }

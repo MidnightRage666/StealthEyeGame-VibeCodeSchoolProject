@@ -44,6 +44,7 @@ namespace StealthEyeGame.Core
         public bool IsPlacingDynamite { get; private set; }
         public bool PlayerIsSpotted { get; private set; }
         public bool IsMovementPaused { get; private set; }
+        public bool MouseNeedsReset { get; set; }
 
         private float _totalTime;
         private float _transitionTimer;
@@ -591,8 +592,19 @@ namespace StealthEyeGame.Core
             Player.MoveToNewLevel(
                 CurrentLevel.PlayerStart);
 
+            MouseNeedsReset = true;
+
             _spawnProtectionTimer =
                 SpawnProtectionDuration;
+        }
+
+        // ============================================================
+        // Maus Reset Clean
+        // ============================================================
+
+        public void ClearMouseReset()
+        {
+            MouseNeedsReset = false;
         }
 
         // ============================================================
