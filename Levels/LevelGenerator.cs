@@ -14,92 +14,177 @@ namespace StealthEyeGame.Levels
     /// </summary>
     public static class LevelGenerator
     {
-        public static Level Generate(int levelNumber, Random rng)
+        public static Level Generate(
+            int levelNumber,
+            Random rng)
         {
-            var settings = DifficultySettings.ForLevel(levelNumber);
-            var grid = new WallType[GameConstants.Cols, GameConstants.Rows];
+            var settings =
+                DifficultySettings.ForLevel(
+                    levelNumber);
 
-            // 1) Rand + zufällige innere Wände
-            for (int c = 0; c < GameConstants.Cols; c++)
+            const int maxGenerationAttempts = 100;
+
+            for (int generationAttempt = 0;
+                 generationAttempt < maxGenerationAttempts;
+                 generationAttempt++)
             {
-                for (int r = 0; r < GameConstants.Rows; r++)
-                {
-                    bool isBorder =
-                        c == 0 ||
-                        r == 0 ||
-                        c == GameConstants.Cols - 1 ||
-                        r == GameConstants.Rows - 1;
+                var grid =
+                    new WallType[
+                        GameConstants.Cols,
+                        GameConstants.Rows];
 
-                    if (isBorder)
+                // ========================================================
+                // 1) RAND + ZUFÄLLIGE WÄNDE
+                // ========================================================
+
+                for (int c = 0;
+                     c < GameConstants.Cols;
+                     c++)
+                {
+                    for (int r = 0;
+                         r < GameConstants.Rows;
+                         r++)
                     {
-                        grid[c, r] = WallType.Solid;
-                    }
-                    else
-                    {
-                        grid[c, r] =
-                            rng.NextDouble() < settings.WallDensity
-                                ? WallType.Solid
-                                : WallType.Empty;
+                        bool isBorder =
+                            c == 0 ||
+                            r == 0 ||
+                            c == GameConstants.Cols - 1 ||
+                            r == GameConstants.Rows - 1;
+
+                        if (isBorder)
+                        {
+                            grid[c, r] =
+                                WallType.Solid;
+                        }
+                        else
+                        {
+                            grid[c, r] =
+                                rng.NextDouble() <
+                                settings.WallDensity
+                                    ? WallType.Solid
+                                    : WallType.Empty;
+                        }
                     }
                 }
-            }
 
-            // 2) Start und Ausgang wählen
-            (int c, int r) startCell =
-                (2, rng.Next(2, GameConstants.Rows - 2));
+                // ========================================================
+                // 2) START + AUSGANG
+                // ========================================================
 
-            (int c, int r) exitCell =
-                ChooseExitCell(rng, startCell);
+                (int c, int r) startCell =
+                    (
+                        2,
+                        rng.Next(
+                            2,
+                            GameConstants.Rows - 2)
+                    );
 
-            int startSafeRadius =
-                levelNumber <= 1
-                    ? 3
-                    : (levelNumber <= 3 ? 2 : 1);
+                (int c, int r) exitCell =
+                    ChooseExitCell(
+                        rng,
+                        startCell);
 
-            ClearArea(grid, startCell, startSafeRadius);
-            ClearArea(grid, exitCell, 1);
+                int startSafeRadius =
+                    levelNumber <= 1
+                        ? 3
+                        : (levelNumber <= 3 ? 2 : 1);
 
-            // 3) Garantierten Korridor freiräumen
-            CarveGuaranteedPath(
-                grid,
-                rng,
-                startCell,
-                exitCell);
+                ClearArea(
+                    grid,
+                    startCell,
+                    startSafeRadius);
 
-            // 4) Verbindungsprüfung
-            System.Diagnostics.Debug.Assert(
-                IsReachable(grid, startCell, exitCell),
-                "Level-Generator hat kein lösbares Level erzeugt.");
+                ClearArea(
+                    grid,
+                    exitCell,
+                    1);
 
-            // 5) Augen platzieren
-            var eyes =
-                PlaceEyes(
+                // ========================================================
+                // 3) GARANTIERTEN WEG
+                // ========================================================
+
+                CarveGuaranteedPath(
                     grid,
                     rng,
                     startCell,
-                    exitCell,
-                    settings);
+                    exitCell);
 
-            Vector2 playerStart =
-                CellCenter(
-                    startCell.c,
-                    startCell.r);
+                // ========================================================
+                // 4) ERREICHBARKEIT
+                // ========================================================
 
-            RectangleF exitRect =
-                new RectangleF(
-                    exitCell.c * GameConstants.CellSize +
-                        GameConstants.CellSize * 0.15f,
-                    exitCell.r * GameConstants.CellSize +
-                        GameConstants.CellSize * 0.15f,
-                    GameConstants.CellSize * 0.7f,
-                    GameConstants.CellSize * 0.7f);
+                if (!IsReachable(
+                        grid,
+                        startCell,
+                        exitCell))
+                {
+                    continue;
+                }
 
-            return new Level(
-                levelNumber,
-                grid,
-                playerStart,
-                exitRect,
-                eyes);
+                // ========================================================
+                // 5) AUGEN
+                // ========================================================
+
+                var eyes =
+                    PlaceEyes(
+                        grid,
+                        rng,
+                        startCell,
+                        exitCell,
+                        settings);
+
+                Vector2 playerStart =
+                    CellCenter(
+                        startCell.c,
+                        startCell.r);
+
+                // ========================================================
+                // 6) START-SICHTPRÜFUNG
+                // ========================================================
+
+                if (PlayerIsVisibleAtStart(
+                        playerStart,
+                        eyes,
+                        grid))
+                {
+                    // Spieler wäre direkt beim Start entdeckt.
+                    // Dieses Level verwerfen und komplett neu generieren.
+                    continue;
+                }
+
+                // ========================================================
+                // 7) AUSGANG
+                // ========================================================
+
+                RectangleF exitRect =
+                    new RectangleF(
+                        exitCell.c *
+                            GameConstants.CellSize +
+                            GameConstants.CellSize *
+                            0.15f,
+
+                        exitCell.r *
+                            GameConstants.CellSize +
+                            GameConstants.CellSize *
+                            0.15f,
+
+                        GameConstants.CellSize *
+                            0.7f,
+
+                        GameConstants.CellSize *
+                            0.7f);
+
+                return new Level(
+                    levelNumber,
+                    grid,
+                    playerStart,
+                    exitRect,
+                    eyes);
+            }
+
+            // Sollte praktisch niemals erreicht werden.
+            throw new InvalidOperationException(
+                "Es konnte nach mehreren Versuchen kein gültiges Level erzeugt werden.");
         }
 
         private static (int c, int r) ChooseExitCell(
@@ -500,6 +585,121 @@ namespace StealthEyeGame.Levels
             }
 
             return eyes;
+        }
+
+        private static bool PlayerIsVisibleAtStart(
+    Vector2 playerPosition,
+    List<Eye> eyes,
+    WallType[,] grid)
+        {
+            foreach (var eye in eyes)
+            {
+                Vector2 toPlayer =
+                    playerPosition -
+                    eye.CurrentPosition;
+
+                float distance =
+                    toPlayer.Length();
+
+                // Außerhalb der Sichtweite
+                if (distance > eye.VisionRange)
+                    continue;
+
+                // Spieler exakt auf dem Auge
+                if (distance <= 0.001f)
+                    return true;
+
+                float angleToPlayer =
+                    MathF.Atan2(
+                        toPlayer.Y,
+                        toPlayer.X);
+
+                float angleDifference =
+                    MathF.Abs(
+                        MathUtil.AngleDifference(
+                            eye.GazeAngle,
+                            angleToPlayer));
+
+                // Außerhalb des Sichtwinkels
+                if (angleDifference >
+                    eye.VisionHalfAngle)
+                {
+                    continue;
+                }
+
+                // Wand blockiert die Sicht?
+                if (!HasWallBetween(
+                        grid,
+                        eye.CurrentPosition,
+                        playerPosition))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool HasWallBetween(
+    WallType[,] grid,
+    Vector2 from,
+    Vector2 to)
+        {
+            Vector2 difference =
+                to - from;
+
+            float distance =
+                difference.Length();
+
+            if (distance <= 0.001f)
+                return false;
+
+            Vector2 direction =
+                difference /
+                distance;
+
+            float stepSize =
+                GameConstants.CellSize * 0.25f;
+
+            int steps =
+                (int)MathF.Ceiling(
+                    distance / stepSize);
+
+            for (int i = 1;
+                 i < steps;
+                 i++)
+            {
+                Vector2 position =
+                    from +
+                    direction *
+                    (i * stepSize);
+
+                int col =
+                    (int)MathF.Floor(
+                        position.X /
+                        GameConstants.CellSize);
+
+                int row =
+                    (int)MathF.Floor(
+                        position.Y /
+                        GameConstants.CellSize);
+
+                if (col < 0 ||
+                    row < 0 ||
+                    col >= GameConstants.Cols ||
+                    row >= GameConstants.Rows)
+                {
+                    return true;
+                }
+
+                if (grid[col, row] ==
+                    WallType.Solid)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static Vector2 CellCenter(int c, int r) =>

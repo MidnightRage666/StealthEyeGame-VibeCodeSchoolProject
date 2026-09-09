@@ -517,10 +517,9 @@ namespace StealthEyeGame.Entities
             float dt,
             Func<Vector2, float, bool> collidesWithWall)
         {
-            MoveToward(
+            MoveTowardIgnoringWalls(
                 _investigationTarget,
-                dt,
-                collidesWithWall);
+                dt);
 
             AimGazeTowardsMovement(
                 _investigationTarget,
@@ -819,6 +818,31 @@ namespace StealthEyeGame.Entities
             }
         }
 
+        private void MoveTowardIgnoringWalls(
+            Vector2 target,
+            float dt)
+        {
+            Vector2 diff =
+                target -
+                CurrentPosition;
+
+            float distance =
+                diff.Length();
+
+            if (distance < 0.01f)
+                return;
+
+            float step =
+                MathF.Min(
+                    distance,
+                    GameConstants.EyeMoveSpeed *
+                    dt);
+
+            CurrentPosition +=
+                diff /
+                distance *
+                step;
+        }
         private void AimGazeTowardsMovement(
             Vector2 target,
             float turnRate,
