@@ -1320,7 +1320,7 @@ namespace StealthEyeGame.Rendering
                 16f;
 
             string medkitText =
-                $"Medkit x{gm.Progress.MedkitsOwned} [R]";
+                $"Medkit {gm.Progress.MedkitsOwned}x [R]";
 
             g.DrawString(
                 medkitText,
@@ -1337,7 +1337,7 @@ namespace StealthEyeGame.Rendering
                 16f;
 
             string dynText =
-                $"Dynamit x{gm.Progress.DynamiteOwned} [E]";
+                $"Dynamit {gm.Progress.DynamiteOwned}x [E]";
 
             var dynSize =
                 g.MeasureString(
