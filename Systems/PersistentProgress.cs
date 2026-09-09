@@ -9,7 +9,7 @@ namespace StealthEyeGame.Systems
     /// </summary>
     public class PersistentProgress
     {
-        public long Coins { get; set; }
+        public int Coins { get; set; }
 
         public int DynamiteOwned { get; set; }
 
