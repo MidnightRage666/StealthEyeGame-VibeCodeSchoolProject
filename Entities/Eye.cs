@@ -19,7 +19,7 @@ namespace StealthEyeGame.Entities
 
         public EyeState State { get; private set; } = EyeState.Idle;
         public bool DetectedThisFrame { get; private set; }
-
+        public float DetectionPercentage { get; private set; }
         public Vector2? LastKnownPlayerPos { get; private set; }
 
         public float HP { get; private set; } = GameConstants.EyeMaxHP;
@@ -46,6 +46,14 @@ namespace StealthEyeGame.Entities
         private const float SearchTurnRate = 3.5f;
 
         private const float RandomLookAngle = 0.65f;
+
+        // ------------------------------------------------------------
+        // ENTDECKUNG
+        // ------------------------------------------------------------
+
+        private const float DetectionIncreaseSpeed = 180f;
+        private const float DetectionDecreaseSpeed = 25f;
+        private const float FullDetectionThreshold = 100f;
 
         // ------------------------------------------------------------
         // Investigation
@@ -102,6 +110,21 @@ namespace StealthEyeGame.Entities
             _walkLookTimer = RandomLookTime();
         }
 
+        public void SetDetectionPercentage(float value)
+        {
+            DetectionPercentage =
+                MathF.Max(
+                    0f,
+                    MathF.Min(
+                        100f,
+                        value));
+
+            if (DetectionPercentage >= 100f)
+            {
+                DetectedThisFrame = true;
+            }
+        }
+
         // ============================================================
         // SAVEGAME
         // ============================================================
@@ -130,6 +153,7 @@ namespace StealthEyeGame.Entities
 
             DetectedThisFrame = false;
             LastKnownPlayerPos = null;
+            DetectionPercentage = 0f;
 
             _movementTarget = currentPosition;
             _hasMovementTarget = false;
@@ -238,19 +262,46 @@ namespace StealthEyeGame.Entities
             }
 
             bool clearLine =
-                inAngle &&
-                !hasWallBetween(
-                    CurrentPosition,
-                    playerPos);
+    inAngle &&
+    !hasWallBetween(
+        CurrentPosition,
+        playerPos);
 
+            // ------------------------------------------------------------
+            // ENTDECKUNGSPROZENT
+            // ------------------------------------------------------------
+
+            if (clearLine)
+            {
+                DetectionPercentage +=
+                    DetectionIncreaseSpeed * dt;
+
+                DetectionPercentage =
+                    MathF.Min(
+                        FullDetectionThreshold,
+                        DetectionPercentage);
+
+                LastKnownPlayerPos =
+                    playerPos;
+            }
+            else
+            {
+                DetectionPercentage -=
+                    DetectionDecreaseSpeed * dt;
+
+                DetectionPercentage =
+                    MathF.Max(
+                        0f,
+                        DetectionPercentage);
+            }
+
+            // Erst bei 100 % wirklich entdeckt
             DetectedThisFrame =
-                clearLine;
+                DetectionPercentage >=
+                FullDetectionThreshold;
 
             if (DetectedThisFrame)
             {
-                LastKnownPlayerPos =
-                    playerPos;
-
                 State =
                     EyeState.Alert;
             }

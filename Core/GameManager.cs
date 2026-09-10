@@ -42,8 +42,13 @@ namespace StealthEyeGame.Core
             new();
 
         public bool IsPlacingDynamite { get; private set; }
+
         public bool PlayerIsSpotted { get; private set; }
+
+        public float PlayerDetectionPercentage { get; private set; }
+
         public bool IsMovementPaused { get; private set; }
+
         public bool MouseNeedsReset { get; set; }
 
         private float _totalTime;
@@ -53,17 +58,29 @@ namespace StealthEyeGame.Core
 
         private float _dashCooldownTimer = 0f;
         private float _dashTimer = 0f;
-        private Vector2 _dashDirection = Vector2.Zero;
+
+        private Vector2 _dashDirection =
+            Vector2.Zero;
 
         private float _spawnProtectionTimer = 0f;
 
-        private const float SpawnProtectionDuration = 1.0f;
+        private const float SpawnProtectionDuration =
+            1.0f;
 
-        private const float DashSpeed = 900f;
-        private const float DashDuration = 0.12f;
-        private const float DashCooldown = 1.0f;
+        private const float DashSpeed =
+            900f;
 
-        private const float DynamitePlacementRadius = 200f;
+        private const float DashDuration =
+            0.12f;
+
+        private const float DashCooldown =
+            1.0f;
+
+        private const float DynamitePlacementRadius =
+            200f;
+
+        private const int LevelCompletionCoinReward =
+            25;
 
         private readonly Random _rng =
             new Random();
@@ -81,8 +98,14 @@ namespace StealthEyeGame.Core
         public void StartNewGame()
         {
             LevelNumber = 1;
+
             _totalTime = 0f;
+
             RunCoinsEarned = 0;
+
+            PlayerDetectionPercentage = 0f;
+
+            PlayerIsSpotted = false;
 
             State =
                 GameState.Playing;
@@ -90,6 +113,7 @@ namespace StealthEyeGame.Core
             IsPlacingDynamite = false;
 
             PlacedDynamite.Clear();
+
             ActiveExplosions.Clear();
 
             CurrentLevel =
@@ -271,12 +295,16 @@ namespace StealthEyeGame.Core
             if (State == GameState.Playing)
             {
                 IsMovementPaused = true;
-                State = GameState.Paused;
+
+                State =
+                    GameState.Paused;
             }
             else if (State == GameState.Paused)
             {
                 IsMovementPaused = false;
-                State = GameState.Playing;
+
+                State =
+                    GameState.Playing;
             }
         }
 
@@ -286,6 +314,7 @@ namespace StealthEyeGame.Core
                 GameState.MainMenu;
 
             IsMovementPaused = true;
+
             IsPlacingDynamite = false;
         }
 
@@ -370,13 +399,6 @@ namespace StealthEyeGame.Core
 
             // --------------------------------------------------------
             // FALLBACK-LEVEL
-            // --------------------------------------------------------
-            //
-            // Wir brauchen die generierten Augen nur als Vorlage
-            // für ihre Werte wie VisionRange, Damage usw.
-            //
-            // Wände, Positionen und Ausgang werden anschließend
-            // durch die gespeicherten Daten ersetzt.
             // --------------------------------------------------------
 
             Level generatedLevel =
@@ -485,7 +507,6 @@ namespace StealthEyeGame.Core
             }
             else
             {
-                // Alte Savegames ohne Eye-Daten
                 restoredEyes =
                     generatedLevel.Eyes;
             }
@@ -527,18 +548,26 @@ namespace StealthEyeGame.Core
             RunCoinsEarned = 0;
 
             IsPlacingDynamite = false;
+
             PlayerIsSpotted = false;
+
+            PlayerDetectionPercentage = 0f;
+
             IsMovementPaused = false;
 
             PlacedDynamite.Clear();
+
             ActiveExplosions.Clear();
 
             _spawnProtectionTimer =
                 SpawnProtectionDuration;
 
             _dashTimer = 0f;
+
             _dashCooldownTimer = 0f;
-            _dashDirection = Vector2.Zero;
+
+            _dashDirection =
+                Vector2.Zero;
 
             State =
                 GameState.Playing;
@@ -579,7 +608,8 @@ namespace StealthEyeGame.Core
         // NÄCHSTES LEVEL
         // ============================================================
 
-        private void LoadLevel(int number)
+        private void LoadLevel(
+            int number)
         {
             LevelNumber =
                 number;
@@ -599,7 +629,7 @@ namespace StealthEyeGame.Core
         }
 
         // ============================================================
-        // Maus Reset Clean
+        // MAUS RESET
         // ============================================================
 
         public void ClearMouseReset()
@@ -861,6 +891,10 @@ namespace StealthEyeGame.Core
         {
             _totalTime += dt;
 
+            // ========================================================
+            // SPAWN-SCHUTZ
+            // ========================================================
+
             if (_spawnProtectionTimer > 0f)
             {
                 _spawnProtectionTimer =
@@ -869,6 +903,10 @@ namespace StealthEyeGame.Core
                         _spawnProtectionTimer - dt);
             }
 
+            // ========================================================
+            // DASH COOLDOWN
+            // ========================================================
+
             if (_dashCooldownTimer > 0f)
             {
                 _dashCooldownTimer =
@@ -876,6 +914,10 @@ namespace StealthEyeGame.Core
                         0f,
                         _dashCooldownTimer - dt);
             }
+
+            // ========================================================
+            // SPIELER BEWEGEN
+            // ========================================================
 
             if (!IsPlacingDynamite &&
                 !IsMovementPaused)
@@ -887,10 +929,22 @@ namespace StealthEyeGame.Core
                 UpdateDash(dt);
             }
 
+            // ========================================================
+            // DYNAMIT + EXPLOSIONEN
+            // ========================================================
+
             UpdateDynamiteAndExplosions(dt);
 
+            // ========================================================
+            // AUGEN + ENTDECKUNG
+            // ========================================================
+
             float bestDamage = 0f;
+
             float bestSlow = 1f;
+
+            float bestDetection = 0f;
+
             bool spotted = false;
 
             foreach (var eye in CurrentLevel.Eyes)
@@ -901,7 +955,57 @@ namespace StealthEyeGame.Core
                     CurrentLevel.CollidesWithWall,
                     CurrentLevel.HasWallBetween);
 
-                if (eye.DetectedThisFrame)
+                // ====================================================
+                // SEARCHING
+                // ====================================================
+                // Das Auge sucht den Spieler.
+                //
+                // Die Anzeige wird auf 100 % gesetzt.
+                //
+                // WICHTIG:
+                // Searching bedeutet NICHT entdeckt.
+                // Deshalb gibt es hier KEINEN Damage
+                // und KEINEN Slow.
+                // ====================================================
+
+                if (eye.State ==
+                    EyeState.Searching)
+                {
+                    eye.SetDetectionPercentage(
+                        100f);
+
+                    if (bestDetection < 100f)
+                    {
+                        bestDetection =
+                            100f;
+                    }
+
+                    continue;
+                }
+
+                // ====================================================
+                // NORMALE ENTDECKUNGSANZEIGE
+                // ====================================================
+
+                if (eye.DetectionPercentage >
+                    bestDetection)
+                {
+                    bestDetection =
+                        eye.DetectionPercentage;
+                }
+
+                // ====================================================
+                // ECHTE ENTDECKUNG
+                // ====================================================
+                //
+                // NUR ALERT verursacht Damage + Slow.
+                //
+                // Searching wird hier absichtlich
+                // nicht berücksichtigt.
+                // ====================================================
+
+                if (eye.State ==
+                    EyeState.Alert)
                 {
                     spotted = true;
 
@@ -921,8 +1025,12 @@ namespace StealthEyeGame.Core
                 }
             }
 
-            CurrentLevel.Eyes.RemoveAll(
-                e => e.IsDestroyed);
+            // ========================================================
+            // DETECTION STATUS
+            // ========================================================
+
+            PlayerDetectionPercentage =
+                bestDetection;
 
             PlayerIsSpotted =
                 spotted;
@@ -930,10 +1038,9 @@ namespace StealthEyeGame.Core
             Player.IsSpottedThisFrame =
                 spotted;
 
-            Player.SlowMultiplier =
-                spotted
-                    ? bestSlow
-                    : 1f;
+            // ========================================================
+            // DAMAGE + SLOW
+            // ========================================================
 
             if (spotted &&
                 _spawnProtectionTimer <= 0f)
@@ -941,27 +1048,73 @@ namespace StealthEyeGame.Core
                 Player.TakeDamage(
                     bestDamage,
                     dt);
+
+                Player.SlowMultiplier =
+                    bestSlow;
             }
+            else
+            {
+                Player.SlowMultiplier =
+                    1f;
+            }
+
+            // ========================================================
+            // GAME OVER
+            // ========================================================
 
             if (!Player.IsAlive)
             {
+                PlayerIsSpotted = true;
+
+                PlayerDetectionPercentage =
+                    100f;
+
+                Player.IsSpottedThisFrame =
+                    true;
+
                 State =
                     GameState.GameOver;
+
+                IsMovementPaused =
+                    true;
 
                 return;
             }
 
-            if (CurrentLevel.PlayerReachedExit(
-                    Player.Position,
-                    Player.Radius))
+            // ========================================================
+            // LEVEL ABSCHLUSS
+            // ========================================================
+
+            if (CurrentLevel.ExitRect.Contains(
+                    Player.Position.X,
+                    Player.Position.Y))
             {
+                // ====================================================
+                // 25 COINS FÜR LEVELABSCHLUSS
+                // ====================================================
+
                 AwardCoins(
-                    GameConstants.CoinsPerLevelComplete);
+                    LevelCompletionCoinReward);
+
+                // ====================================================
+                // LEVELTRANSITION
+                // ====================================================
+
+                _transitionTimer = 0f;
 
                 State =
                     GameState.LevelTransition;
 
-                _transitionTimer = 0f;
+                IsPlacingDynamite = false;
+
+                PlayerIsSpotted = false;
+
+                PlayerDetectionPercentage = 0f;
+
+                Player.IsSpottedThisFrame =
+                    false;
+
+                return;
             }
         }
 
@@ -1009,6 +1162,7 @@ namespace StealthEyeGame.Core
             if (Progress.HasStrongerDynamite)
             {
                 radius *= 1.5f;
+
                 damage *= 1.5f;
             }
 
@@ -1050,10 +1204,14 @@ namespace StealthEyeGame.Core
 
                 if (dist <= directHitRadius)
                 {
+                    bool wasDestroyed =
+                        eye.IsDestroyed;
+
                     eye.TakeExplosionDamage(
                         damage);
 
-                    if (eye.IsDestroyed)
+                    if (!wasDestroyed &&
+                        eye.IsDestroyed)
                     {
                         AwardCoins(
                             GameConstants.CoinsPerEyeDestroyed);
@@ -1072,9 +1230,11 @@ namespace StealthEyeGame.Core
         // COINS
         // ============================================================
 
-        private void AwardCoins(int amount)
+        private void AwardCoins(
+            int amount)
         {
             Progress.Coins += amount;
+
             RunCoinsEarned += amount;
         }
 
@@ -1140,7 +1300,8 @@ namespace StealthEyeGame.Core
         // DASH UPDATE
         // ============================================================
 
-        private void UpdateDash(float dt)
+        private void UpdateDash(
+            float dt)
         {
             if (_dashTimer <= 0f)
                 return;

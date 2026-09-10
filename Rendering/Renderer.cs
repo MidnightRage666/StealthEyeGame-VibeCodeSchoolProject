@@ -37,6 +37,12 @@ namespace StealthEyeGame.Rendering
         private static readonly Color PlayerGlowColor =
             Color.FromArgb(255, 120, 230, 255);
 
+        private static readonly Color PlayerSearchingColor =
+            Color.FromArgb(255, 255, 220, 60);
+
+        private static readonly Color PlayerSpottedColor =
+            Color.FromArgb(255, 255, 120, 120);
+
         private static readonly Color ExitGlowColor =
             Color.FromArgb(255, 255, 210, 80);
 
@@ -110,30 +116,9 @@ namespace StealthEyeGame.Rendering
 
 
         // =========================================================
-        // SCREEN -> GAME
-        // =========================================================
-
-        /// <summary>
-        /// Wandelt eine echte Bildschirmposition in eine Position
-        /// innerhalb der internen Spielwelt um.
-        ///
-        /// Dadurch funktioniert die Maus auch bei:
-        /// 1920x1080
-        /// 2560x1440
-        /// 3840x2160
-        /// usw.
-        /// </summary>
-        // =========================================================
         // SCREEN -> VIRTUELLE SPIELKOORDINATEN
         // =========================================================
 
-        /// <summary>
-        /// Wandelt Bildschirmkoordinaten in die interne 1920x1080
-        /// Spielauflösung um.
-        /// Die TopBar wird NICHT abgezogen.
-        ///
-        /// Diese Methode wird für Menü-/Button-Klicks verwendet.
-        /// </summary>
         public Vector2 ScreenToVirtual(
             float screenX,
             float screenY,
@@ -176,15 +161,6 @@ namespace StealthEyeGame.Rendering
         // SCREEN -> LEVEL / FIELD
         // =========================================================
 
-        /// <summary>
-        /// Wandelt Bildschirmkoordinaten in die interne Levelposition
-        /// um.
-        ///
-        /// Die TopBar wird hier abgezogen, weil die Levelwelt unterhalb
-        /// der TopBar beginnt.
-        ///
-        /// Diese Methode wird für Spielerbewegung, Dynamit usw. verwendet.
-        /// </summary>
         public Vector2 ScreenToField(
             float screenX,
             float screenY,
@@ -219,7 +195,6 @@ namespace StealthEyeGame.Rendering
             g.SmoothingMode =
                 SmoothingMode.AntiAlias;
 
-            // Hintergrund immer komplett schwarz.
             g.Clear(Color.Black);
 
 
@@ -247,10 +222,6 @@ namespace StealthEyeGame.Rendering
             float offsetY =
                 (screenHeight - scaledHeight) / 2f;
 
-
-            // =====================================================
-            // SPIELWELT AUF REFERENZAUFLÖSUNG SETZEN
-            // =====================================================
 
             var state =
                 g.Save();
@@ -353,7 +324,7 @@ namespace StealthEyeGame.Rendering
 
             DrawPlayer(
                 g,
-                gm.Player);
+                gm);
 
 
             if (gm.IsPlacingDynamite)
@@ -523,8 +494,55 @@ namespace StealthEyeGame.Rendering
 
         private void DrawPlayer(
             Graphics g,
-            Player player)
+            GameManager gm)
         {
+            Player player =
+                gm.Player;
+
+            // -----------------------------------------------------
+            // STATUS DES SPIELERS
+            // -----------------------------------------------------
+
+            bool isBeingSearched =
+                false;
+
+            foreach (var eye
+                     in gm.CurrentLevel.Eyes)
+            {
+                if (eye.IsDestroyed)
+                    continue;
+
+                if (eye.State ==
+                    EyeState.Searching)
+                {
+                    isBeingSearched = true;
+                    break;
+                }
+            }
+
+            Color playerColor;
+
+            if (player.IsSpottedThisFrame)
+            {
+                playerColor =
+                    PlayerSpottedColor;
+            }
+            else if (isBeingSearched)
+            {
+                playerColor =
+                    PlayerSearchingColor;
+            }
+            else
+            {
+                playerColor =
+                    PlayerGlowColor;
+            }
+
+
+            // -----------------------------------------------------
+            // GLOW
+            // -----------------------------------------------------
+
             float glowRadius =
                 player.Radius * 4f;
 
@@ -548,14 +566,14 @@ namespace StealthEyeGame.Rendering
                     CenterColor =
                         Color.FromArgb(
                             140,
-                            PlayerGlowColor),
+                            playerColor),
 
                     SurroundColors =
                         new[]
                         {
                             Color.FromArgb(
                                 0,
-                                PlayerGlowColor)
+                                playerColor)
                         }
                 };
 
@@ -563,16 +581,14 @@ namespace StealthEyeGame.Rendering
                 glowBrush,
                 glow);
 
+
+            // -----------------------------------------------------
+            // BALL
+            // -----------------------------------------------------
+
             using var coreBrush =
                 new SolidBrush(
-                    player.IsSpottedThisFrame
-                        ? Color.FromArgb(
-                            255,
-                            255,
-                            120,
-                            120)
-
-                        : PlayerGlowColor);
+                    playerColor);
 
             float r =
                 player.Radius;
@@ -833,18 +849,34 @@ namespace StealthEyeGame.Rendering
             Graphics g,
             Level level)
         {
+            // -----------------------------------------------------
+            // SICHTKEGEL
+            // -----------------------------------------------------
+
             foreach (var eye
                      in level.Eyes)
             {
+                // Zerstörte Augen nicht mehr zeichnen
+                if (eye.IsDestroyed)
+                    continue;
+
                 DrawVisionCone(
                     g,
                     level,
                     eye);
             }
 
+            // -----------------------------------------------------
+            // AUGEN
+            // -----------------------------------------------------
+
             foreach (var eye
                      in level.Eyes)
             {
+                // Zerstörte Augen nicht mehr zeichnen
+                if (eye.IsDestroyed)
+                    continue;
+
                 DrawEyeShape(
                     g,
                     eye);
@@ -1165,6 +1197,11 @@ namespace StealthEyeGame.Rendering
                 GameConstants.CanvasWidth,
                 GameConstants.TopBarHeight);
 
+
+            // =====================================================
+            // HP
+            // =====================================================
+
             float barW =
                 170f;
 
@@ -1231,7 +1268,7 @@ namespace StealthEyeGame.Rendering
                 barX,
                 barY,
 
-                barW * hpRatio,
+                barW * (float)hpRatio,
                 barH);
 
             using var hpOutline =
@@ -1272,6 +1309,11 @@ namespace StealthEyeGame.Rendering
 
                 StringFormat.GenericDefault);
 
+
+            // =====================================================
+            // LEVEL
+            // =====================================================
+
             float cursorX =
                 barX +
                 barW +
@@ -1293,6 +1335,11 @@ namespace StealthEyeGame.Rendering
                     levelText,
                     font).Width +
                 16f;
+
+
+            // =====================================================
+            // COINS
+            // =====================================================
 
             using var coinBrush =
                 new SolidBrush(
@@ -1319,6 +1366,11 @@ namespace StealthEyeGame.Rendering
                     font).Width +
                 16f;
 
+
+            // =====================================================
+            // MEDKIT
+            // =====================================================
+
             string medkitText =
                 $"Medkit {gm.Progress.MedkitsOwned}x [R]";
 
@@ -1335,6 +1387,11 @@ namespace StealthEyeGame.Rendering
                     medkitText,
                     font).Width +
                 16f;
+
+
+            // =====================================================
+            // DYNAMIT
+            // =====================================================
 
             string dynText =
                 $"Dynamit {gm.Progress.DynamiteOwned}x [E]";
@@ -1405,26 +1462,86 @@ namespace StealthEyeGame.Rendering
                 dynRect.X + 8,
                 dynRect.Y + 4);
 
-            string status =
-                gm.PlayerIsSpotted
-                    ? "STATUS: ENTDECKT!"
-                    : "STATUS: VERSTECKT";
+
+            // =====================================================
+            // ERKENNUNG
+            // =====================================================
+
+            float detection =
+                Math.Clamp(
+                    gm.PlayerDetectionPercentage,
+                    0f,
+                    100f);
+
+            bool isBeingSearched =
+                false;
+
+            foreach (var eye
+                     in gm.CurrentLevel.Eyes)
+            {
+                if (eye.IsDestroyed)
+                    continue;
+
+                if (eye.State ==
+                    EyeState.Searching)
+                {
+                    isBeingSearched = true;
+                    break;
+                }
+            }
+
+            string status;
+
+            Color statusColor;
+
+            if (isBeingSearched)
+            {
+                status =
+                    "STATUS: GESUCHT";
+
+                statusColor =
+                    PlayerSearchingColor;
+            }
+            else if (detection >= 100f)
+            {
+                status =
+                    "STATUS: ENTDECKT!";
+
+                statusColor =
+                    Color.FromArgb(
+                        255,
+                        255,
+                        70,
+                        70);
+            }
+            else if (detection >= 75f)
+            {
+                status =
+                    $"STATUS: FAST GEKRIEGT! {detection:0}%";
+
+                statusColor =
+                    Color.FromArgb(
+                        255,
+                        255,
+                        170,
+                        60);
+            }
+            else
+            {
+                status =
+                    $"STATUS: ENTDECKUNG {detection:0}%";
+
+                statusColor =
+                    Color.FromArgb(
+                        255,
+                        140,
+                        220,
+                        150);
+            }
 
             using var statusBrush =
                 new SolidBrush(
-                    gm.PlayerIsSpotted
-
-                        ? Color.FromArgb(
-                            255,
-                            255,
-                            90,
-                            90)
-
-                        : Color.FromArgb(
-                            255,
-                            140,
-                            220,
-                            150));
+                    statusColor);
 
             var statusSize =
                 g.MeasureString(
@@ -1441,6 +1558,94 @@ namespace StealthEyeGame.Rendering
                     14,
 
                 barY - 1);
+
+
+            // =====================================================
+            // ERKENNUNGSBALKEN
+            // =====================================================
+
+            float detectionBarWidth =
+                180f;
+
+            float detectionBarHeight =
+                5f;
+
+            float detectionBarX =
+                GameConstants.CanvasWidth -
+                detectionBarWidth -
+                14f;
+
+            float detectionBarY =
+                barY +
+                barH +
+                3f;
+
+            using var detectionBg =
+                new SolidBrush(
+                    Color.FromArgb(
+                        255,
+                        55,
+                        55,
+                        60));
+
+            g.FillRectangle(
+                detectionBg,
+
+                detectionBarX,
+                detectionBarY,
+
+                detectionBarWidth,
+                detectionBarHeight);
+
+            Color detectionColor;
+
+            if (isBeingSearched)
+            {
+                detectionColor =
+                    PlayerSearchingColor;
+            }
+            else if (detection >= 100f)
+            {
+                detectionColor =
+                    Color.FromArgb(
+                        255,
+                        255,
+                        60,
+                        60);
+            }
+            else if (detection >= 75f)
+            {
+                detectionColor =
+                    Color.FromArgb(
+                        255,
+                        255,
+                        170,
+                        50);
+            }
+            else
+            {
+                detectionColor =
+                    Color.FromArgb(
+                        255,
+                        100,
+                        200,
+                        130);
+            }
+
+            using var detectionBrush =
+                new SolidBrush(
+                    detectionColor);
+
+            g.FillRectangle(
+                detectionBrush,
+
+                detectionBarX,
+                detectionBarY,
+
+                detectionBarWidth *
+                (detection / 100f),
+
+                detectionBarHeight);
         }
 
 
@@ -1470,12 +1675,10 @@ namespace StealthEyeGame.Rendering
                 GameConstants.WindowHeight);
 
             float cx =
-                GameConstants.CanvasWidth /
-                2f;
+                GameConstants.CanvasWidth / 2f;
 
             float cy =
-                GameConstants.WindowHeight /
-                2f;
+                GameConstants.WindowHeight / 2f;
 
             using var titleFont =
                 new Font(
@@ -1665,15 +1868,10 @@ namespace StealthEyeGame.Rendering
 
             var panelRect =
                 new Rectangle(
-                    GameConstants.CanvasWidth / 2 -
-                        260,
-
+                    GameConstants.CanvasWidth / 2 - 260,
                     40,
-
                     520,
-
-                    GameConstants.WindowHeight -
-                        80);
+                    GameConstants.WindowHeight - 80);
 
             g.FillRectangle(
                 panelBrush,
